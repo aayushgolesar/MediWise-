@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AppRole, PharmacyOffer, AuthUser } from './types';
-import { PHARMACY_OFFERS } from './data/mockData';
+import { AppRole, PharmacyOffer, AuthUser, Medicine } from './types';
+import { PHARMACY_OFFERS, MEDICINES_CATALOG } from './data/mockData';
 import { Header } from './components/Header';
 import { MarketplaceView } from './components/MarketplaceView';
 import { CheckoutView } from './components/CheckoutView';
@@ -19,6 +19,7 @@ import { Sparkles, CheckCircle2 } from 'lucide-react';
 export default function App() {
   const [currentRole, setCurrentRole] = useState<AppRole>('marketplace');
   const [selectedOffer, setSelectedOffer] = useState<PharmacyOffer | null>(PHARMACY_OFFERS[0]);
+  const [selectedMedicine, setSelectedMedicine] = useState<Medicine>(MEDICINES_CATALOG[0]);
   const [packCount, setPackCount] = useState<number>(30);
   const [isNoorChatOpen, setIsNoorChatOpen] = useState<boolean>(false);
 
@@ -62,9 +63,12 @@ export default function App() {
     setAuthInitialMode('signin');
   };
 
-  const handleSelectPharmacy = (offer: PharmacyOffer, pack: number) => {
+  const handleSelectPharmacy = (offer: PharmacyOffer, pack: number, medicine?: Medicine) => {
     setSelectedOffer(offer);
     setPackCount(pack);
+    if (medicine) {
+      setSelectedMedicine(medicine);
+    }
     setCurrentRole('checkout');
   };
 
@@ -107,6 +111,7 @@ export default function App() {
           <MarketplaceView
             onSelectPharmacy={handleSelectPharmacy}
             onOpenNoorChat={() => setIsNoorChatOpen(true)}
+            initialMedicineId={selectedMedicine.id}
           />
         )}
 
@@ -114,6 +119,7 @@ export default function App() {
           <CheckoutView
             selectedOffer={selectedOffer}
             packCount={packCount}
+            selectedMedicine={selectedMedicine}
             onBackToMarketplace={() => setCurrentRole('marketplace')}
             onOrderPlaced={handleOrderPlaced}
           />

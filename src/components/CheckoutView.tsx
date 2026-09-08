@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { PharmacyOffer, PatientProfile, PrescriptionAudit } from '../types';
-import { PATIENTS, INITIAL_PRESCRIPTION, PHARMACY_OFFERS } from '../data/mockData';
+import { PharmacyOffer, PatientProfile, PrescriptionAudit, Medicine } from '../types';
+import { PATIENTS, INITIAL_PRESCRIPTION, PHARMACY_OFFERS, MEDICINES_CATALOG } from '../data/mockData';
 import { 
   ShieldCheck, 
   FileText, 
@@ -21,6 +21,7 @@ import {
 interface CheckoutViewProps {
   selectedOffer: PharmacyOffer | null;
   packCount: number;
+  selectedMedicine?: Medicine;
   onBackToMarketplace: () => void;
   onOrderPlaced: (orderId: string) => void;
 }
@@ -28,10 +29,12 @@ interface CheckoutViewProps {
 export const CheckoutView: React.FC<CheckoutViewProps> = ({
   selectedOffer,
   packCount,
+  selectedMedicine,
   onBackToMarketplace,
   onOrderPlaced
 }) => {
   const activeOffer = selectedOffer || PHARMACY_OFFERS[0];
+  const activeMedicine = selectedMedicine || MEDICINES_CATALOG[0];
   const [selectedPatientId, setSelectedPatientId] = useState<string>('pat-1');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'cod'>('upi');
   const [showRxModal, setShowRxModal] = useState<boolean>(false);
@@ -298,7 +301,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             {/* Item & Pricing Breakdown */}
             <div className="space-y-3 text-xs">
               <div className="flex justify-between text-slate-300">
-                <span>Atorvastatin 20mg ({packCount} Tablets)</span>
+                <span>{activeMedicine.brandName} ({packCount} Units)</span>
                 <span className="font-mono">₹{itemTotal.toFixed(2)}</span>
               </div>
 

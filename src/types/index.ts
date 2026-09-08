@@ -26,6 +26,37 @@ export interface AuthUser {
   avatarUrl?: string;
 }
 
+export interface MedicinePackOption {
+  count: number;
+  label: string;
+  unitDiscount: number;
+  isRecommended: boolean;
+}
+
+export interface Medicine {
+  id: string;
+  brandName: string;
+  genericName: string;
+  strength: string;
+  dosageForm: string;
+  therapeuticCategory: string;
+  category: 'Cardiovascular' | 'Diabetes' | 'Antibiotics' | 'Gastrointestinal' | 'Pain & Fever' | 'Respiratory' | 'Vitamins & Supplements';
+  schedule: 'Schedule H (Prescription Required)' | 'Schedule H1 (Strict Rx & Register)' | 'OTC (Over The Counter)';
+  mrpReference: number;
+  startingPrice: number;
+  discountPercent: number;
+  cdscoApproved: boolean;
+  bioequivalentVerified: boolean;
+  bioequivalentTo: string;
+  inStock: boolean;
+  stockCount: number;
+  hubCount: number;
+  indications: string[];
+  description: string;
+  packOptions: MedicinePackOption[];
+  pharmacyOffers: PharmacyOffer[];
+}
+
 export interface PharmacyOffer {
   id: string;
   pharmacyName: string;
