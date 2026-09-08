@@ -1,0 +1,6 @@
+{
+  "name": "MediWise Healthcare Marketplace",
+  "description": "Multi-tenant generic medicine price comparison platform, clinical Rx tele-audit, pharmacy dispense portal, and clearinghouse operations console.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
