@@ -23,16 +23,8 @@ export default function App() {
   const [packCount, setPackCount] = useState<number>(30);
   const [isNoorChatOpen, setIsNoorChatOpen] = useState<boolean>(false);
 
-  // Authentication State
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>({
-    id: 'usr-pat-01',
-    name: 'Anika Sharma',
-    email: 'anika.sharma@example.com',
-    phone: '+91 98841 20492',
-    role: 'patient',
-    abhaId: '91-4821-9920-1123@abdm',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
-  });
+  // Authentication State: Defaults to null so Login page appears first
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authInitialMode, setAuthInitialMode] = useState<'signin' | 'register'>('signin');
   const [authToast, setAuthToast] = useState<string | null>(null);
 
@@ -43,7 +35,7 @@ export default function App() {
 
   const handleLoginSuccess = (user: AuthUser, targetRole?: AppRole) => {
     setCurrentUser(user);
-    setAuthToast(`Authenticated as ${user.name} (${user.role.toUpperCase()})`);
+    setAuthToast(`Welcome, ${user.name}! Accessing ${user.role.toUpperCase()} workspace...`);
     setTimeout(() => setAuthToast(null), 4000);
     if (targetRole) {
       setCurrentRole(targetRole);
@@ -57,8 +49,8 @@ export default function App() {
 
   const handleSignOut = () => {
     setCurrentUser(null);
-    setAuthToast('Signed out successfully. Switched to guest mode.');
-    setTimeout(() => setAuthToast(null), 3500);
+    setAuthToast('Signed out successfully. Please sign in to access MediWise.');
+    setTimeout(() => setAuthToast(null), 4000);
     setCurrentRole('auth');
     setAuthInitialMode('signin');
   };
@@ -76,6 +68,73 @@ export default function App() {
     setCurrentRole('tracking');
   };
 
+  // If user is not authenticated, show ONLY the Login / Registration screen first
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+        {/* Toast Notification */}
+        {authToast && (
+          <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-emerald-500/50 flex items-center gap-2 text-xs font-semibold animate-bounce">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{authToast}</span>
+          </div>
+        )}
+
+        {/* Dedicated Login Screen Header */}
+        <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-6 py-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-900/30">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-lg text-white tracking-tight">MediWise</span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    CDSCO Gateway
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">Generic Medicine Price Parity & Clearinghouse</p>
+              </div>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-3 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Secure Access Gateway
+              </span>
+              <span className="text-slate-600">&bull;</span>
+              <span>TLS 1.3 Strict</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Standalone Login / Registration Container */}
+        <main className="grow flex items-center justify-center py-10 px-4 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
+          <div className="w-full max-w-7xl">
+            <AuthView
+              onLoginSuccess={handleLoginSuccess}
+              initialMode={authInitialMode}
+              initialRole="patient"
+              isMandatoryAuth={true}
+            />
+          </div>
+        </main>
+
+        {/* Security / Compliance Footer */}
+        <footer className="bg-slate-950 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>&copy; {new Date().getFullYear()} MediWise Healthcare Technologies Inc. All rights reserved.</span>
+            <span className="text-[11px] text-slate-500">
+              Statutory verification enforced under Drugs &amp; Cosmetics Act, 1940 &bull; DISHA Health Privacy Standards
+            </span>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  // Once authenticated, load the full site!
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       {/* Toast Notification */}

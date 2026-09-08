@@ -25,16 +25,18 @@ import {
 
 interface AuthViewProps {
   onLoginSuccess: (user: AuthUser, defaultRole?: AppRole) => void;
-  onNavigateMarketplace: () => void;
+  onNavigateMarketplace?: () => void;
   initialMode?: 'signin' | 'register';
   initialRole?: UserRole;
+  isMandatoryAuth?: boolean;
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({
   onLoginSuccess,
   onNavigateMarketplace,
   initialMode = 'signin',
-  initialRole = 'patient'
+  initialRole = 'patient',
+  isMandatoryAuth = false
 }) => {
   const [authMode, setAuthMode] = useState<'signin' | 'register'>(initialMode);
   const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole);
@@ -958,12 +960,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </span>
             )}
 
-            <button
-              onClick={onNavigateMarketplace}
-              className="text-slate-400 hover:text-slate-700 transition cursor-pointer text-[11px]"
-            >
-              Skip &bull; View as Guest
-            </button>
+            {!isMandatoryAuth && onNavigateMarketplace && (
+              <button
+                onClick={onNavigateMarketplace}
+                className="text-slate-400 hover:text-slate-700 transition cursor-pointer text-[11px]"
+              >
+                Skip &bull; View as Guest
+              </button>
+            )}
           </div>
         </div>
 
