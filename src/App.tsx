@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppRole, PharmacyOffer } from './types';
+import { AppRole, PharmacyOffer, AuthUser } from './types';
 import { PHARMACY_OFFERS } from './data/mockData';
 import { Header } from './components/Header';
 import { MarketplaceView } from './components/MarketplaceView';
@@ -12,14 +12,55 @@ import { DisputeConsoleView } from './components/DisputeConsoleView';
 import { SuperAdminView } from './components/SuperAdminView';
 import { OemPortalView } from './components/OemPortalView';
 import { NoorModerationView } from './components/NoorModerationView';
+import { AuthView } from './components/AuthView';
 import { AskNoorWidget } from './components/AskNoorWidget';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [currentRole, setCurrentRole] = useState<AppRole>('marketplace');
   const [selectedOffer, setSelectedOffer] = useState<PharmacyOffer | null>(PHARMACY_OFFERS[0]);
   const [packCount, setPackCount] = useState<number>(30);
   const [isNoorChatOpen, setIsNoorChatOpen] = useState<boolean>(false);
+
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>({
+    id: 'usr-pat-01',
+    name: 'Anika Sharma',
+    email: 'anika.sharma@example.com',
+    phone: '+91 98841 20492',
+    role: 'patient',
+    abhaId: '91-4821-9920-1123@abdm',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
+  });
+  const [authInitialMode, setAuthInitialMode] = useState<'signin' | 'register'>('signin');
+  const [authToast, setAuthToast] = useState<string | null>(null);
+
+  const handleOpenAuth = (mode: 'signin' | 'register' = 'signin') => {
+    setAuthInitialMode(mode);
+    setCurrentRole('auth');
+  };
+
+  const handleLoginSuccess = (user: AuthUser, targetRole?: AppRole) => {
+    setCurrentUser(user);
+    setAuthToast(`Authenticated as ${user.name} (${user.role.toUpperCase()})`);
+    setTimeout(() => setAuthToast(null), 4000);
+    if (targetRole) {
+      setCurrentRole(targetRole);
+    } else {
+      if (user.role === 'pharmacist') setCurrentRole('partner_portal');
+      else if (user.role === 'admin') setCurrentRole('super_admin');
+      else if (user.role === 'oem') setCurrentRole('oem_portal');
+      else setCurrentRole('marketplace');
+    }
+  };
+
+  const handleSignOut = () => {
+    setCurrentUser(null);
+    setAuthToast('Signed out successfully. Switched to guest mode.');
+    setTimeout(() => setAuthToast(null), 3500);
+    setCurrentRole('auth');
+    setAuthInitialMode('signin');
+  };
 
   const handleSelectPharmacy = (offer: PharmacyOffer, pack: number) => {
     setSelectedOffer(offer);
@@ -33,15 +74,35 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+      {/* Toast Notification */}
+      {authToast && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-emerald-500/50 flex items-center gap-2 text-xs font-semibold animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{authToast}</span>
+        </div>
+      )}
+
       {/* Header Navigation Bar */}
       <Header 
         currentRole={currentRole}
         onSelectRole={setCurrentRole}
         onOpenNoorChat={() => setIsNoorChatOpen(true)}
+        currentUser={currentUser}
+        onOpenAuth={handleOpenAuth}
+        onSignOut={handleSignOut}
       />
 
       {/* Main Role-Based Content Area */}
       <main className="grow pb-16">
+        {currentRole === 'auth' && (
+          <AuthView
+            onLoginSuccess={handleLoginSuccess}
+            onNavigateMarketplace={() => setCurrentRole('marketplace')}
+            initialMode={authInitialMode}
+            initialRole={currentUser?.role || 'patient'}
+          />
+        )}
+
         {currentRole === 'marketplace' && (
           <MarketplaceView
             onSelectPharmacy={handleSelectPharmacy}

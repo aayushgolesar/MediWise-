@@ -8,7 +8,23 @@ export type AppRole =
   | 'dispute_console'
   | 'super_admin'
   | 'oem_portal'
-  | 'noor_moderation';
+  | 'noor_moderation'
+  | 'auth';
+
+export type UserRole = 'patient' | 'pharmacist' | 'admin' | 'oem';
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+  abhaId?: string;
+  pharmacyHubName?: string;
+  pharmacistRegNo?: string;
+  cdscoLicense?: string;
+  avatarUrl?: string;
+}
 
 export interface PharmacyOffer {
   id: string;
