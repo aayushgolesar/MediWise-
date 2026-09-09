@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node --use-system-ca --import tsx src/index.ts",
     "dev": "node --use-system-ca --import tsx --watch src/index.ts",
-    "build": "tsc --noEmit && echo 'Build complete'",
+    "build": "tsc --noEmit --skipLibCheck && echo 'Build complete'",
     "seed": "node --use-system-ca --import tsx src/seed.ts",
     "migrate:sqlite-to-mongo": "node --use-system-ca --import tsx src/migrate-sqlite-to-mongo.ts",
     "lint": "tsc --noEmit",

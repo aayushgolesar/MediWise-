@@ -1,5 +1,6 @@
 import express from 'express';
-import { Medicine, PharmacyOffer } from '../models/Medicine.js';
+import { Medicine } from '../models/Medicine.js';
+import { PharmacyOffer } from '../models/PharmacyOffer.js';
 import { requireAuth } from '../security.js';
 import { catalogCacheKey, getCached, setCached } from '../cache.js';
 

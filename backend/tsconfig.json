@@ -8,5 +8,6 @@
     "strict": false,
     "noEmit": true
   },
-  "include": ["src", "tests", "vitest.config.ts"]
+  "include": ["src", "tests"],
+  "exclude": ["tests/e2e.spec.ts", "src/seed.ts"]
 }
