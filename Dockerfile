@@ -1,12 +1,12 @@
 # ── Stage 1: Build Vite frontend ───────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS frontend-builder
 
-WORKDIR /app
+WORKDIR /app/frontend
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci
 
-COPY . .
+COPY frontend/ ./
 RUN npm run build
 
 # ── Stage 2: Production Node runtime ───────────────────────────────────────────
@@ -14,17 +14,20 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Only install production deps
-COPY package*.json ./
+# Install backend production dependencies
+COPY backend/package*.json ./backend/
+WORKDIR /app/backend
 RUN npm ci --omit=dev
 
-# Copy compiled server (tsx compiles on-the-fly via tsx, or use tsc)
-COPY server/ ./server/
-COPY --from=builder /app/dist ./dist
+WORKDIR /app
+COPY backend/ ./backend/
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Expose port used by Cloud Run
 ENV PORT=8080
+ENV NODE_ENV=production
 EXPOSE 8080
 
-# Serve static files from dist/ and API from Express
-CMD ["node", "--loader", "tsx/esm", "server/index.ts"]
+# Serve from backend
+WORKDIR /app/backend
+CMD ["node", "--loader", "tsx/esm", "src/index.ts"]

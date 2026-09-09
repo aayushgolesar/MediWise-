@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm run install:all
       - run: npm run lint
 
   # ── 2. Unit & Integration Tests ───────────────────────────────────────────────
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm run install:all
       - run: npm run test
         env:
           JWT_SECRET: test-secret-at-least-32-characters-long
@@ -53,7 +53,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm run install:all
       - run: npm run build
 
   # ── 4. Docker Build & Push to GCR ────────────────────────────────────────────

@@ -24,6 +24,7 @@
 | D-014 | VitePWA and Service Worker for Offline Resilience | 2026-09-09 | ✅ Active |
 | D-015 | react-i18next for Multi-Language Patient Support | 2026-09-09 | ✅ Active |
 | D-016 | Google Cloud Run Containerized Deployment & CI/CD | 2026-09-09 | ✅ Active |
+| D-017 | Complete Separation of Frontend and Backend Subfolders | 2026-09-09 | ✅ Active |
 
 ---
 
@@ -432,3 +433,23 @@ Containerize Express with a multi-stage Node 20 Alpine `Dockerfile` deployed to 
 ### Reasoning
 - Horizontal auto-scaling down to zero and up to 10+ instances handles traffic spikes.
 - Native GCP Secret Manager integration protects `GEMINI_API_KEY`, `SESSION_SECRET`, and `REDIS_URL`.
+
+---
+
+## D-017 — Complete Separation of Frontend and Backend Subfolders
+
+| Field | Detail |
+|-------|--------|
+| **Date** | 2026-09-09 |
+| **Status** | ✅ Active |
+
+### Context / Problem
+Coupling backend server code and frontend client code inside the root workspace caused cross-boundary imports (e.g. client components importing node modules like ioredis, server referencing src/), risking build pollution and complicating independent deployments.
+
+### Decision Taken
+Completely separate the repository into `frontend/` and `backend/` subfolders with independent `package.json`, TypeScript configurations, `.env` files, and test setups. The root workspace acts strictly as an orchestrator using `concurrently`.
+
+### Reasoning
+- Enforces HTTP/WebSocket API-only communication between frontend and backend.
+- Prevents server-side secrets or Node.js native dependencies (`better-sqlite3`, `ioredis`, `@google/genai`) from leaking into browser bundles.
+- Allows the frontend and backend to be built, linted, tested, and containerized independently.

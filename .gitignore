@@ -4,5 +4,15 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
-!.env.example
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+backend/.env
+backend/.env.local
+backend/*.db-shm
+backend/*.db-wal
+backend/coverage/
+backend/dist/
+frontend/dist/
