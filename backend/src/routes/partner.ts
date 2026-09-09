@@ -1,8 +1,10 @@
 import express from 'express';
-import db from '../db.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
 import { logAuditEvent } from '../audit.js';
 import { emitOrderUpdated } from '../realtime.js';
+import { Order } from '../models/Order.js';
+import { PharmacyOffer } from '../models/PharmacyOffer.js';
+import { Medicine } from '../models/Medicine.js';
 
 const router = express.Router();
 router.use(requireAuth, requireRole('pharmacist', 'admin'));
@@ -11,85 +13,94 @@ router.use(requireAuth, requireRole('pharmacist', 'admin'));
  * GET /api/partner/orders
  * Returns all orders in non-delivered states for pharmacist review.
  */
-router.get('/orders', (_req, res) => {
-  const rows = db.prepare(`
-    SELECT * FROM orders
-    WHERE status NOT IN ('delivered')
-    ORDER BY placed_time DESC
-  `).all() as Record<string, unknown>[];
-  res.json({ data: rows, count: rows.length });
+router.get('/orders', async (_req, res, next) => {
+  try {
+    const orders = await Order.find({ status: { $nin: ['delivered'] } })
+      .sort({ placed_time: -1 })
+      .lean();
+    res.json({ data: orders, count: orders.length });
+  } catch (error: unknown) { next(error); }
 });
 
 /**
  * PUT /api/partner/orders/:id/accept
  * Pharmacist accepts order and starts prescription audit / dispensing verification.
  */
-router.put('/orders/:id/accept', (req: AuthenticatedRequest, res) => {
-  const exists = db.prepare('SELECT order_id, medicine_name, pharmacy_hub_id FROM orders WHERE order_id = ?').get(req.params.id) as {
-    order_id: string;
-    medicine_name: string;
-    pharmacy_hub_id: string;
-  } | undefined;
+router.put('/orders/:id/accept', async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id).lean();
 
-  if (!exists) {
-    res.status(404).json({ error: 'Order not found' });
-    return;
-  }
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
 
-  db.prepare("UPDATE orders SET status = 'pharmacist_audit' WHERE order_id = ?").run(req.params.id);
-  emitOrderUpdated(req.params.id, 'pharmacist_audit');
+    await Order.findByIdAndUpdate(req.params.id, { status: 'pharmacist_audit' });
+    emitOrderUpdated(req.params.id, 'pharmacist_audit');
 
-  // Regulatory audit record for dispensing process start
-  logAuditEvent('PRESCRIPTION_VERIFIED', req.params.id, req.auth?.sub ?? null, {
-    orderId: req.params.id,
-    medicineName: exists.medicine_name,
-    pharmacyHubId: exists.pharmacy_hub_id,
-    action: 'Accepted for Pharmacist Audit',
-  });
+    // Regulatory audit record for dispensing process start
+    await logAuditEvent('PRESCRIPTION_VERIFIED', req.params.id, req.auth?.sub ?? null, {
+      orderId: req.params.id,
+      medicineName: order.medicine_name,
+      pharmacyHubId: order.pharmacy_hub_id,
+      action: 'Accepted for Pharmacist Audit',
+    });
 
-  res.json({ data: { status: 'pharmacist_audit' }, message: 'Order accepted for audit.' });
+    res.json({ data: { status: 'pharmacist_audit' }, message: 'Order accepted for audit.' });
+  } catch (error: unknown) { next(error); }
 });
 
 /**
  * PUT /api/partner/orders/:id/reject
  * Rejection triggers the reassignment engine.
  */
-router.put('/orders/:id/reject', (req: AuthenticatedRequest, res) => {
-  const exists = db.prepare('SELECT order_id, medicine_name, pharmacy_hub_id FROM orders WHERE order_id = ?').get(req.params.id) as {
-    order_id: string;
-    medicine_name: string;
-    pharmacy_hub_id: string;
-  } | undefined;
+router.put('/orders/:id/reject', async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id).lean();
 
-  if (!exists) {
-    res.status(404).json({ error: 'Order not found' });
-    return;
-  }
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
 
-  db.prepare("UPDATE orders SET status = 'locked_escrow' WHERE order_id = ?").run(req.params.id);
-  emitOrderUpdated(req.params.id, 'locked_escrow');
+    await Order.findByIdAndUpdate(req.params.id, { status: 'locked_escrow' });
+    emitOrderUpdated(req.params.id, 'locked_escrow');
 
-  logAuditEvent('ORDER_REASSIGNED', req.params.id, req.auth?.sub ?? null, {
-    orderId: req.params.id,
-    rejectedByHub: exists.pharmacy_hub_id,
-    reason: 'Pharmacist rejected or out of stock',
-  });
+    await logAuditEvent('ORDER_REASSIGNED', req.params.id, req.auth?.sub ?? null, {
+      orderId: req.params.id,
+      rejectedByHub: order.pharmacy_hub_id,
+      reason: 'Pharmacist rejected or out of stock',
+    });
 
-  res.json({ data: { status: 'locked_escrow' }, message: 'Order rejected. Reassignment engine triggered.' });
+    res.json({ data: { status: 'locked_escrow' }, message: 'Order rejected. Reassignment engine triggered.' });
+  } catch (error: unknown) { next(error); }
 });
 
 /**
  * GET /api/partner/inventory
  * Returns all pharmacy offers (inventory proxy) with their hub info.
  */
-router.get('/inventory', (_req, res) => {
-  const rows = db.prepare(`
-    SELECT po.*, m.brand_name, m.generic_name, m.schedule
-    FROM pharmacy_offers po
-    JOIN medicines m ON po.medicine_id = m.id
-    ORDER BY po.pharmacy_name, po.batch_number
-  `).all() as Record<string, unknown>[];
-  res.json({ data: rows, count: rows.length });
+router.get('/inventory', async (_req, res, next) => {
+  try {
+    const offers = await PharmacyOffer.find().lean();
+    
+    // Fetch medicine details for each offer
+    const medicineIds = [...new Set(offers.map(o => o.medicine_id))];
+    const medicines = await Medicine.find({ _id: { $in: medicineIds } }).lean();
+    const medicineMap = new Map(medicines.map(m => [m._id, m]));
+    
+    const enrichedOffers = offers.map(offer => {
+      const medicine = medicineMap.get(offer.medicine_id);
+      return {
+        ...offer,
+        brand_name: medicine?.brand_name ?? '',
+        generic_name: medicine?.generic_name ?? '',
+        schedule: medicine?.schedule ?? '',
+      };
+    });
+    
+    res.json({ data: enrichedOffers, count: enrichedOffers.length });
+  } catch (error: unknown) { next(error); }
 });
 
 export default router;

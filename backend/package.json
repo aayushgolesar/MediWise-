@@ -4,9 +4,10 @@
   "version": "2.1.0",
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts",
-    "seed": "tsx src/seed.ts",
+    "start": "node --use-system-ca --import tsx src/index.ts",
+    "dev": "node --use-system-ca --import tsx --watch src/index.ts",
+    "seed": "node --use-system-ca --import tsx src/seed.ts",
+    "migrate:sqlite-to-mongo": "node --use-system-ca --import tsx src/migrate-sqlite-to-mongo.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -14,11 +15,11 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "ioredis": "^6.0.0",
+    "mongoose": "^9.9.5",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
@@ -29,6 +30,8 @@
     "@types/supertest": "^7.2.1",
     "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^5.0.0",
+    "better-sqlite3": "^13.0.3",
+    "mongodb-memory-server": "^11.2.0",
     "supertest": "^7.2.2",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

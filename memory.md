@@ -53,7 +53,7 @@ The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content
 
 | Component | Technology | Status |
 |-----------|-----------|--------|
-| Database | SQLite (`mediwise.db`) + performance indexes | Active (Postgres migration planned) |
+| Database | MongoDB Atlas (MediWise collection data imported from SQLite) | Data migration complete; API query-layer switchover pending |
 | Cache | Redis (ioredis wrapper with in-memory fallback) | Active |
 | Real-Time | Socket.IO room-based event bus | Active |
 | Containerization | Docker (multi-stage Node 20 Alpine) | Implemented (`Dockerfile`) |
@@ -140,7 +140,7 @@ The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content
 - [x] Migrate all frontend view imports from `mockData.ts` to typed API calls
 - [x] Global React ErrorBoundary with recovery and state reset
 - [x] Unified reactive toast notification system (`toastStore.ts`, `ToastContainer.tsx`) with automatic API error interceptor
-- [ ] Replace SQLite development database with planned PostgreSQL schema-per-tenant deployment (Deferred to Phase 7)
+- [ ] Replace remaining SQLite route queries with Mongoose models; Atlas data import is complete
 
 ### ✅ Authentication & API Security (Phase 3)
 - [x] scrypt password hashing for registered and seeded users
@@ -204,7 +204,7 @@ The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content
 ### 🟢 Low Priority / Future
 
 - [ ] **Cold-chain IoT sensors**: Real-time MQTT telematics for vehicle temperature loggers
-- [ ] **PostgreSQL multi-tenant migration**: Migrate from SQLite development database to production managed PostgreSQL
+- [ ] **MongoDB API query-layer migration**: Move active backend routes from SQLite queries to Mongoose models; Atlas data import is complete
 
 ---
 
@@ -387,7 +387,8 @@ An inventory item is auto-quarantined when:
 ## 9. Future Roadmap
 
 ### Q4 2026 — Backend Foundation
-- [ ] PostgreSQL schema setup with per-tenant migration scripts
+- [x] MongoDB Atlas data import from the SQLite development database (idempotent importer)
+- [ ] Mongoose API query-layer conversion for all active backend routes
 - [ ] Express.js REST API implementation (all planned endpoints)
 - [ ] JWT authentication with ABHA ID integration
 - [ ] Gemini proxy endpoint with rate limiting

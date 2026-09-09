@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 > Changes that are staged or in progress for Phase 8.
 
+### Infrastructure
+- Added MongoDB Atlas configuration, Windows system-CA support for Atlas TLS, and an idempotent SQLite-to-MongoDB import utility.
+- Imported users, catalog, offers, patients, prescriptions, orders, operations, audits, payments, and tax invoices into MongoDB Atlas.
+
 ---
 
 ## [2.1.0] — 2026-09-09

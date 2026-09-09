@@ -1,206 +1,284 @@
 import express from 'express';
-import db from '../db.js';
 import type { QuarantineItem, DisputeCase, TenantHub } from '../types/index.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
 import { getAuditLogs, logAuditEvent } from '../audit.js';
+import { QuarantineItem as QuarantineItemModel } from '../models/QuarantineItem.js';
+import { ReassignmentTask } from '../models/ReassignmentTask.js';
+import { Order } from '../models/Order.js';
+import { DisputeCase as DisputeCaseModel } from '../models/DisputeCase.js';
+import { TenantHub as TenantHubModel } from '../models/TenantHub.js';
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin'));
 
 // ─── Quarantine ───────────────────────────────────────────────────────────────
 
-function rowToQuarantine(row: Record<string, unknown>): QuarantineItem {
+function rowToQuarantine(item: {
+  _id: string;
+  sku_name: string;
+  generic_composition: string;
+  hub_id: string;
+  hub_name: string;
+  locality: string;
+  reported_price: number;
+  system_floor_price: number;
+  discrepancy_percent: number;
+  last_heartbeat_ago: string;
+  reason: string;
+  severity: string;
+  status: string;
+}): QuarantineItem {
   return {
-    id: row.id as string,
-    skuName: row.sku_name as string,
-    genericComposition: row.generic_composition as string,
-    hubId: row.hub_id as string,
-    hubName: row.hub_name as string,
-    locality: row.locality as string,
-    reportedPrice: row.reported_price as number,
-    systemFloorPrice: row.system_floor_price as number,
-    discrepancyPercent: row.discrepancy_percent as number,
-    lastHeartbeatAgo: row.last_heartbeat_ago as string,
-    reason: row.reason as QuarantineItem['reason'],
-    severity: row.severity as QuarantineItem['severity'],
-    status: row.status as QuarantineItem['status'],
+    id: item._id,
+    skuName: item.sku_name,
+    genericComposition: item.generic_composition,
+    hubId: item.hub_id,
+    hubName: item.hub_name,
+    locality: item.locality,
+    reportedPrice: item.reported_price,
+    systemFloorPrice: item.system_floor_price,
+    discrepancyPercent: item.discrepancy_percent,
+    lastHeartbeatAgo: item.last_heartbeat_ago,
+    reason: item.reason as QuarantineItem['reason'],
+    severity: item.severity as QuarantineItem['severity'],
+    status: item.status as QuarantineItem['status'],
   };
 }
 
 /** GET /api/admin/quarantine */
-router.get('/quarantine', (_req, res) => {
-  const rows = db.prepare("SELECT * FROM quarantine_items ORDER BY CASE severity WHEN 'Critical' THEN 1 WHEN 'High' THEN 2 WHEN 'Medium' THEN 3 ELSE 4 END").all() as Record<string, unknown>[];
-  res.json({ data: rows.map(rowToQuarantine), count: rows.length });
+router.get('/quarantine', async (_req, res, next) => {
+  try {
+    const items = await QuarantineItemModel.find()
+      .sort({
+        severity: 1, // MongoDB will sort Critical < High < Low < Medium alphabetically, we need custom sort
+      })
+      .lean();
+    
+    // Custom severity sort: Critical=1, High=2, Medium=3, Low=4
+    const severityOrder: Record<string, number> = { Critical: 1, High: 2, Medium: 3, Low: 4 };
+    items.sort((a, b) => (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5));
+    
+    res.json({ data: items.map(rowToQuarantine), count: items.length });
+  } catch (error: unknown) { next(error); }
 });
 
 /** PUT /api/admin/quarantine/:id */
-router.put('/quarantine/:id', (req, res) => {
-  const { action } = req.body as { action: 'release' | 'escalate' };
-  const newStatus = action === 'release' ? 'Released' : 'Quarantined';
-  const result = db.prepare("UPDATE quarantine_items SET status = ? WHERE id = ?").run(newStatus, req.params.id);
-  if (result.changes === 0) { res.status(404).json({ error: 'Quarantine item not found' }); return; }
-  res.json({ data: { id: req.params.id, status: newStatus }, message: `Item ${action}d successfully.` });
+router.put('/quarantine/:id', async (req, res, next) => {
+  try {
+    const { action } = req.body as { action: 'release' | 'escalate' };
+    const newStatus = action === 'release' ? 'Released' : 'Quarantined';
+    const result = await QuarantineItemModel.findByIdAndUpdate(
+      req.params.id,
+      { status: newStatus },
+      { new: true }
+    );
+    if (!result) { res.status(404).json({ error: 'Quarantine item not found' }); return; }
+    res.json({ data: { id: req.params.id, status: newStatus }, message: `Item ${action}d successfully.` });
+  } catch (error: unknown) { next(error); }
 });
 
 // ─── Reassignment ─────────────────────────────────────────────────────────────
 
 /** GET /api/admin/reassignment */
-router.get('/reassignment', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM reassignment_tasks').all() as Record<string, unknown>[];
-  const data = rows.map(r => ({
-    orderId: r.order_id,
-    patientName: r.patient_name,
-    medicineName: r.medicine_name,
-    originalHub: r.original_hub,
-    timeRemainingSec: r.time_remaining_sec,
-    totalTimeoutSec: r.total_timeout_sec,
-    timeoutReason: r.timeout_reason,
-    candidateHubs: JSON.parse(r.candidate_hubs as string),
-  }));
-  res.json({ data, count: data.length });
+router.get('/reassignment', async (_req, res, next) => {
+  try {
+    const tasks = await ReassignmentTask.find().lean();
+    const data = tasks.map(r => ({
+      orderId: r._id,
+      patientName: r.patient_name,
+      medicineName: r.medicine_name,
+      originalHub: r.original_hub,
+      timeRemainingSec: r.time_remaining_sec,
+      totalTimeoutSec: r.total_timeout_sec,
+      timeoutReason: r.timeout_reason,
+      candidateHubs: JSON.parse(r.candidate_hubs),
+    }));
+    res.json({ data, count: data.length });
+  } catch (error: unknown) { next(error); }
 });
 
 /** POST /api/admin/reassignment/:orderId/assign */
-router.post('/reassignment/:orderId/assign', (req: AuthenticatedRequest, res) => {
-  const { hubId } = req.body as { hubId: string };
-  db.prepare('DELETE FROM reassignment_tasks WHERE order_id = ?').run(req.params.orderId);
-  db.prepare("UPDATE orders SET pharmacy_hub_id = ?, status = 'locked_escrow' WHERE order_id = ?").run(hubId, req.params.orderId);
+router.post('/reassignment/:orderId/assign', async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { hubId } = req.body as { hubId: string };
+    await ReassignmentTask.findByIdAndDelete(req.params.orderId);
+    await Order.findByIdAndUpdate(req.params.orderId, {
+      pharmacy_hub_id: hubId,
+      status: 'locked_escrow',
+    });
 
-  logAuditEvent('ORDER_REASSIGNED', req.params.orderId, req.auth?.sub ?? null, {
-    orderId: req.params.orderId,
-    assignedHubId: hubId,
-    status: 'locked_escrow',
-  });
+    await logAuditEvent('ORDER_REASSIGNED', req.params.orderId, req.auth?.sub ?? null, {
+      orderId: req.params.orderId,
+      assignedHubId: hubId,
+      status: 'locked_escrow',
+    });
 
-  res.json({ data: { orderId: req.params.orderId, assignedHubId: hubId }, message: 'Order reassigned successfully.' });
+    res.json({ data: { orderId: req.params.orderId, assignedHubId: hubId }, message: 'Order reassigned successfully.' });
+  } catch (error: unknown) { next(error); }
 });
 
 // ─── Disputes ─────────────────────────────────────────────────────────────────
 
-function rowToDispute(row: Record<string, unknown>): DisputeCase {
+function rowToDispute(dispute: {
+  _id: string;
+  order_id: string;
+  customer_name: string;
+  medicine_name: string;
+  dispute_type: string;
+  escrow_amount: number;
+  customer_claim_photo_url: string;
+  dispatch_baseline_url: string;
+  seal_barcode_expected: string;
+  seal_barcode_reported: string;
+  courier_gps_duration: string;
+  courier_shock_spike: string;
+  status: string;
+}): DisputeCase {
   return {
-    caseId: row.case_id as string,
-    orderId: row.order_id as string,
-    customerName: row.customer_name as string,
-    medicineName: row.medicine_name as string,
-    disputeType: row.dispute_type as DisputeCase['disputeType'],
-    escrowAmount: row.escrow_amount as number,
-    customerClaimPhotoUrl: row.customer_claim_photo_url as string,
-    dispatchBaselinePhotoUrl: row.dispatch_baseline_url as string,
-    sealBarcodeExpected: row.seal_barcode_expected as string,
-    sealBarcodeReported: row.seal_barcode_reported as string,
-    courierGpsDuration: row.courier_gps_duration as string,
-    courierShockSpike: row.courier_shock_spike as string,
-    status: row.status as DisputeCase['status'],
+    caseId: dispute._id,
+    orderId: dispute.order_id,
+    customerName: dispute.customer_name,
+    medicineName: dispute.medicine_name,
+    disputeType: dispute.dispute_type as DisputeCase['disputeType'],
+    escrowAmount: dispute.escrow_amount,
+    customerClaimPhotoUrl: dispute.customer_claim_photo_url,
+    dispatchBaselinePhotoUrl: dispute.dispatch_baseline_url,
+    sealBarcodeExpected: dispute.seal_barcode_expected,
+    sealBarcodeReported: dispute.seal_barcode_reported,
+    courierGpsDuration: dispute.courier_gps_duration,
+    courierShockSpike: dispute.courier_shock_spike,
+    status: dispute.status as DisputeCase['status'],
   };
 }
 
 /** GET /api/admin/disputes */
-router.get('/disputes', (_req, res) => {
-  const rows = db.prepare("SELECT * FROM dispute_cases ORDER BY status DESC").all() as Record<string, unknown>[];
-  res.json({ data: rows.map(rowToDispute), count: rows.length });
+router.get('/disputes', async (_req, res, next) => {
+  try {
+    const disputes = await DisputeCaseModel.find().sort({ status: -1 }).lean();
+    res.json({ data: disputes.map(rowToDispute), count: disputes.length });
+  } catch (error: unknown) { next(error); }
 });
 
 /** PUT /api/admin/disputes/:id/resolve */
-router.put('/disputes/:id/resolve', (req: AuthenticatedRequest, res) => {
-  const { resolution } = req.body as { resolution: 'Refund Approved' | 'Dispute Rejected' | 'Hub Penalized' };
-  const validResolutions = ['Refund Approved', 'Dispute Rejected', 'Hub Penalized'];
-  if (!validResolutions.includes(resolution)) {
-    res.status(400).json({ error: 'Invalid resolution. Must be: Refund Approved | Dispute Rejected | Hub Penalized' });
-    return;
-  }
-  const result = db.prepare("UPDATE dispute_cases SET status = ? WHERE case_id = ?").run(resolution, req.params.id);
-  if (result.changes === 0) { res.status(404).json({ error: 'Dispute case not found' }); return; }
+router.put('/disputes/:id/resolve', async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { resolution } = req.body as { resolution: 'Refund Approved' | 'Dispute Rejected' | 'Hub Penalized' };
+    const validResolutions = ['Refund Approved', 'Dispute Rejected', 'Hub Penalized'];
+    if (!validResolutions.includes(resolution)) {
+      res.status(400).json({ error: 'Invalid resolution. Must be: Refund Approved | Dispute Rejected | Hub Penalized' });
+      return;
+    }
+    const result = await DisputeCaseModel.findByIdAndUpdate(
+      req.params.id,
+      { status: resolution },
+      { new: true }
+    );
+    if (!result) { res.status(404).json({ error: 'Dispute case not found' }); return; }
 
-  // Update escrow status on the linked order
-  const disputeRow = db.prepare('SELECT order_id, escrow_amount FROM dispute_cases WHERE case_id = ?').get(req.params.id) as { order_id: string; escrow_amount: number } | undefined;
-  if (disputeRow) {
-    const escrowStatus = resolution === 'Refund Approved' ? 'Refunded' : 'Released to Pharmacy';
-    db.prepare("UPDATE orders SET escrow_status = ? WHERE order_id = ?").run(escrowStatus, disputeRow.order_id);
+    // Update escrow status on the linked order
+    const dispute = await DisputeCaseModel.findById(req.params.id).lean();
+    if (dispute) {
+      const escrowStatus = resolution === 'Refund Approved' ? 'Refunded' : 'Released to Pharmacy';
+      await Order.findByIdAndUpdate(dispute.order_id, { escrow_status: escrowStatus });
 
-    const auditType = resolution === 'Refund Approved' ? 'ESCROW_REFUNDED' : 'DISPUTE_RESOLVED';
-    logAuditEvent(auditType, disputeRow.order_id, req.auth?.sub ?? null, {
-      caseId: req.params.id,
-      resolution,
-      escrowAmount: disputeRow.escrow_amount,
-      newEscrowStatus: escrowStatus,
-    });
-  }
+      const auditType = resolution === 'Refund Approved' ? 'ESCROW_REFUNDED' : 'DISPUTE_RESOLVED';
+      await logAuditEvent(auditType, dispute.order_id, req.auth?.sub ?? null, {
+        caseId: req.params.id,
+        resolution,
+        escrowAmount: dispute.escrow_amount,
+        newEscrowStatus: escrowStatus,
+      });
+    }
 
-  res.json({ data: { caseId: req.params.id, status: resolution }, message: `Dispute resolved: ${resolution}` });
+    res.json({ data: { caseId: req.params.id, status: resolution }, message: `Dispute resolved: ${resolution}` });
+  } catch (error: unknown) { next(error); }
 });
 
 // ─── Tenant Hubs (Super Admin) ────────────────────────────────────────────────
 
-function rowToHub(row: Record<string, unknown>): TenantHub {
+function rowToHub(hub: {
+  _id: string;
+  hub_name: string;
+  schema_name: string;
+  city: string;
+  locality: string;
+  db_latency_ms: number;
+  active_orders: number;
+  storage_mb: number;
+  cdsco_license: string;
+  status: string;
+}): TenantHub {
   return {
-    tenantId: row.tenant_id as string,
-    hubName: row.hub_name as string,
-    schemaName: row.schema_name as string,
-    city: row.city as string,
-    locality: row.locality as string,
-    dbLatencyMs: row.db_latency_ms as number,
-    activeOrders: row.active_orders as number,
-    storageMb: row.storage_mb as number,
-    cdscoLicense: row.cdsco_license as string,
-    status: row.status as TenantHub['status'],
+    tenantId: hub._id,
+    hubName: hub.hub_name,
+    schemaName: hub.schema_name,
+    city: hub.city,
+    locality: hub.locality,
+    dbLatencyMs: hub.db_latency_ms,
+    activeOrders: hub.active_orders,
+    storageMb: hub.storage_mb,
+    cdscoLicense: hub.cdsco_license,
+    status: hub.status as TenantHub['status'],
   };
 }
 
 /** GET /api/admin/hubs */
-router.get('/hubs', (_req, res) => {
-  const rows = db.prepare('SELECT * FROM tenant_hubs ORDER BY hub_name').all() as Record<string, unknown>[];
-  res.json({ data: rows.map(rowToHub), count: rows.length });
+router.get('/hubs', async (_req, res, next) => {
+  try {
+    const hubs = await TenantHubModel.find().sort({ hub_name: 1 }).lean();
+    res.json({ data: hubs.map(rowToHub), count: hubs.length });
+  } catch (error: unknown) { next(error); }
 });
 
 // ─── Manual Admin Escrow Overrides ───────────────────────────────────────────
 
 /** POST /api/admin/escrow/:orderId/release */
-router.post('/escrow/:orderId/release', (req: AuthenticatedRequest, res) => {
-  const row = db.prepare('SELECT order_id, total_paid, pharmacy_hub_id FROM orders WHERE order_id = ?').get(req.params.orderId) as {
-    order_id: string;
-    total_paid: number;
-    pharmacy_hub_id: string;
-  } | undefined;
+router.post('/escrow/:orderId/release', async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const order = await Order.findById(req.params.orderId).lean();
 
-  if (!row) {
-    res.status(404).json({ error: 'Order not found' });
-    return;
-  }
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
 
-  db.prepare("UPDATE orders SET escrow_status = 'Released to Pharmacy' WHERE order_id = ?").run(req.params.orderId);
+    await Order.findByIdAndUpdate(req.params.orderId, {
+      escrow_status: 'Released to Pharmacy',
+    });
 
-  logAuditEvent('ESCROW_RELEASED', req.params.orderId, req.auth?.sub ?? null, {
-    orderId: req.params.orderId,
-    releasedAmount: row.total_paid,
-    destinationHubId: row.pharmacy_hub_id,
-    overrideByAdmin: true,
-  });
+    await logAuditEvent('ESCROW_RELEASED', req.params.orderId, req.auth?.sub ?? null, {
+      orderId: req.params.orderId,
+      releasedAmount: order.total_paid,
+      destinationHubId: order.pharmacy_hub_id,
+      overrideByAdmin: true,
+    });
 
-  res.json({ data: { orderId: req.params.orderId, escrowStatus: 'Released to Pharmacy' }, message: 'Escrow released manually by Admin.' });
+    res.json({ data: { orderId: req.params.orderId, escrowStatus: 'Released to Pharmacy' }, message: 'Escrow released manually by Admin.' });
+  } catch (error: unknown) { next(error); }
 });
 
 /** POST /api/admin/escrow/:orderId/refund */
-router.post('/escrow/:orderId/refund', (req: AuthenticatedRequest, res) => {
-  const row = db.prepare('SELECT order_id, total_paid FROM orders WHERE order_id = ?').get(req.params.orderId) as {
-    order_id: string;
-    total_paid: number;
-  } | undefined;
+router.post('/escrow/:orderId/refund', async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const order = await Order.findById(req.params.orderId).lean();
 
-  if (!row) {
-    res.status(404).json({ error: 'Order not found' });
-    return;
-  }
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
 
-  db.prepare("UPDATE orders SET escrow_status = 'Refunded' WHERE order_id = ?").run(req.params.orderId);
+    await Order.findByIdAndUpdate(req.params.orderId, {
+      escrow_status: 'Refunded',
+    });
 
-  logAuditEvent('ESCROW_REFUNDED', req.params.orderId, req.auth?.sub ?? null, {
-    orderId: req.params.orderId,
-    refundedAmount: row.total_paid,
-    overrideByAdmin: true,
-  });
+    await logAuditEvent('ESCROW_REFUNDED', req.params.orderId, req.auth?.sub ?? null, {
+      orderId: req.params.orderId,
+      refundedAmount: order.total_paid,
+      overrideByAdmin: true,
+    });
 
-  res.json({ data: { orderId: req.params.orderId, escrowStatus: 'Refunded' }, message: 'Escrow refunded manually by Admin.' });
+    res.json({ data: { orderId: req.params.orderId, escrowStatus: 'Refunded' }, message: 'Escrow refunded manually by Admin.' });
+  } catch (error: unknown) { next(error); }
 });
 
 export default router;

@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createApp } from './app.js';
 import { initRealtime } from './realtime.js';
+import { connectDB } from './db.js';
 
 dotenv.config();
 
@@ -29,11 +30,16 @@ initRealtime(io);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 MediWise API running at http://localhost:${PORT}`);
-    console.log(`   Health check: http://localhost:${PORT}/api/health`);
-    console.log(`   CORS allowed: ${CLIENT_URL}`);
-    console.log(`   Gemini AI:    ${process.env.GEMINI_API_KEY ? '✅ Configured' : '⚠️  Dev fallback mode'}\n`);
+  void connectDB().then(() => {
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n🚀 MediWise API running at http://localhost:${PORT}`);
+      console.log(`   Health check: http://localhost:${PORT}/api/health`);
+      console.log(`   CORS allowed: ${CLIENT_URL}`);
+      console.log(`   Gemini AI:    ${process.env.GEMINI_API_KEY ? '✅ Configured' : '⚠️  Dev fallback mode'}\n`);
+    });
+  }).catch((error: unknown) => {
+    console.error('Failed to connect to MongoDB:', error);
+    process.exitCode = 1;
   });
 }
 

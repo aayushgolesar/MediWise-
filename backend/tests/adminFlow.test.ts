@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { signToken } from '../src/security.js';
-import db from '../src/db.js';
+import { ReassignmentTask } from '../src/models/ReassignmentTask.js';
 
 describe('Admin Operational & Reassignment Flows (Phase 6)', () => {
   const app = createApp();
@@ -40,10 +40,16 @@ describe('Admin Operational & Reassignment Flows (Phase 6)', () => {
     const candidates = [
       { hubId: 'hub-blr-01', name: 'Apollo Pharmacy Indiranagar', distanceKm: 1.8, stock: 42, slaMinutes: 15, matchScore: 92, status: 'Optimal' }
     ];
-    db.prepare(`
-      INSERT OR REPLACE INTO reassignment_tasks (order_id, patient_name, medicine_name, original_hub, time_remaining_sec, total_timeout_sec, timeout_reason, candidate_hubs)
-      VALUES (?, 'Priya Sundaram', 'Telmisartan 40mg', 'MedPlus Indiranagar', 240, 900, 'No Pharmacist Acceptance (15m SLA)', ?)
-    `).run(testOrderId, JSON.stringify(candidates));
+    await ReassignmentTask.create({
+      _id: testOrderId,
+      patient_name: 'Priya Sundaram',
+      medicine_name: 'Telmisartan 40mg',
+      original_hub: 'MedPlus Indiranagar',
+      time_remaining_sec: 240,
+      total_timeout_sec: 900,
+      timeout_reason: 'No Pharmacist Acceptance (15m SLA)',
+      candidate_hubs: JSON.stringify(candidates),
+    });
 
     const getTasks = await request(app)
       .get('/api/admin/reassignment')

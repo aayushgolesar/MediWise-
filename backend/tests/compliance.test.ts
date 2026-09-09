@@ -1,21 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { logAuditEvent, getAuditLogs } from '../src/audit.js';
-import db from '../src/db.js';
+import { User } from '../src/models/User.js';
 
 describe('Regulatory & Compliance Verification (CDSCO & DISHA)', () => {
-  it('1. Mandates immutable audit logging for Schedule H/H1 and Escrow operations', () => {
+  it('1. Mandates immutable audit logging for Schedule H/H1 and Escrow operations', async () => {
     const testEntityId = `order-compliance-${Date.now()}`;
     const testActorId = 'usr-pharmacist-compliance-01';
 
     // Log dispensing and escrow events
-    const log1 = logAuditEvent('SCHEDULE_H_DISPENSED', testEntityId, testActorId, {
+    const log1 = await logAuditEvent('SCHEDULE_H_DISPENSED', testEntityId, testActorId, {
       medicineName: 'Amoxicillin 500mg',
       doctorRegNo: 'KMC-99412',
       schedule: 'Schedule H1',
       unitsDispensed: 10,
     });
 
-    const log2 = logAuditEvent('ESCROW_RELEASED', testEntityId, testActorId, {
+    const log2 = await logAuditEvent('ESCROW_RELEASED', testEntityId, testActorId, {
       releasedAmount: 145.5,
       destinationHubId: 'hub-blr-01',
     });
@@ -24,7 +24,7 @@ describe('Regulatory & Compliance Verification (CDSCO & DISHA)', () => {
     expect(log2.id).toBeDefined();
 
     // Query logs
-    const records = getAuditLogs(10, testEntityId);
+    const records = await getAuditLogs(10, testEntityId);
     expect(records.length).toBe(2);
 
     const dispensed = records.find(r => r.eventType === 'SCHEDULE_H_DISPENSED');
@@ -33,12 +33,8 @@ describe('Regulatory & Compliance Verification (CDSCO & DISHA)', () => {
     expect(dispensed?.metadata.doctorRegNo).toBe('KMC-99412');
   });
 
-  it('2. DISHA Data Privacy: Verifies passwords are never stored in plaintext', () => {
-    const users = db.prepare('SELECT id, email, password_hash FROM users').all() as Array<{
-      id: string;
-      email: string;
-      password_hash: string;
-    }>;
+  it('2. DISHA Data Privacy: Verifies passwords are never stored in plaintext', async () => {
+    const users = await User.find().select('_id email password_hash').lean();
 
     expect(users.length).toBeGreaterThan(0);
     for (const user of users) {
@@ -49,8 +45,8 @@ describe('Regulatory & Compliance Verification (CDSCO & DISHA)', () => {
     }
   });
 
-  it('3. DISHA Data Privacy: Ensures audit log metadata excludes plain credentials', () => {
-    const allAuditLogs = getAuditLogs(50);
+  it('3. DISHA Data Privacy: Ensures audit log metadata excludes plain credentials', async () => {
+    const allAuditLogs = await getAuditLogs(50);
     for (const record of allAuditLogs) {
       const metaStr = JSON.stringify(record.metadata).toLowerCase();
       expect(metaStr).not.toContain('password');

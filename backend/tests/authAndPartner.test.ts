@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { signToken, hashPassword } from '../src/security.js';
-import db from '../src/db.js';
+import { User } from '../src/models/User.js';
+import { Order } from '../src/models/Order.js';
 
 describe('Auth & Partner Operational Routes (Phase 6 Unit & Integration)', () => {
   const app = createApp();
@@ -10,13 +11,20 @@ describe('Auth & Partner Operational Routes (Phase 6 Unit & Integration)', () =>
   let pharmacistToken: string;
   const csrfToken = 'test-csrf-auth-token-44';
 
-  beforeAll(() => {
+  beforeAll(async () => {
     const pwdHash = hashPassword('MedPlusSecurePass2026!');
-    db.prepare(`
-      INSERT OR REPLACE INTO users
-        (id, name, email, phone, password_hash, role, pharmacy_hub_name, pharmacist_reg_no, cdsco_license)
-      VALUES (?, 'Test Pharmacist', 'test.pharm@medplus.example', '+91 98841 00000', ?, 'pharmacist', 'MedPlus Indiranagar', 'KSPC-48192-A', 'KA-BLR-20B-10928')
-    `).run(testPharmacistId, pwdHash);
+    await User.create({
+      _id: testPharmacistId,
+      name: 'Test Pharmacist',
+      email: 'test.pharm@medplus.example',
+      phone: '+91 98841 00000',
+      password_hash: pwdHash,
+      role: 'pharmacist',
+      pharmacy_hub_name: 'MedPlus Indiranagar',
+      pharmacist_reg_no: 'KSPC-48192-A',
+      cdsco_license: 'KA-BLR-20B-10928',
+      created_at: new Date().toISOString(),
+    });
 
     const now = Math.floor(Date.now() / 1000);
     pharmacistToken = signToken({ sub: testPharmacistId, role: 'pharmacist', exp: now + 3600 });
@@ -101,16 +109,41 @@ describe('Auth & Partner Operational Routes (Phase 6 Unit & Integration)', () =>
     it('pharmacist accepts order and advances state to pharmacist_audit', async () => {
       // Create a test order to accept
       const testOrderId = `MW-ACCEPT-${Date.now()}`;
-      db.prepare(`
-        INSERT INTO orders (order_id, placed_time, delivery_eta, delivery_otp, status,
-          customer_name, customer_address, customer_phone, pharmacy_name, pharmacy_hub_id,
-          pharmacy_address, pharmacy_license, pharmacist_name, pharmacist_reg, courier_name,
-          courier_phone, courier_rating, vehicle_number, medicine_name, composition, pack_size,
-          batch_number, seal_hash, price, item_total, packaging_tamper_fee, delivery_fee,
-          platform_convenience, generic_savings, total_paid, escrow_status)
-        VALUES (?, '10:00 AM', '45m', '1234', 'locked_escrow', 'Patient', 'Addr', 'Phone', 'MedPlus', 'hub-blr-01',
-          'Addr', 'Lic', 'Pharm', 'Reg', 'Cour', 'Phone', 5, 'KA-01', 'Med', 'Comp', 10, 'B1', '0x1', 100, 100, 12, 15, 5, 0, 132, 'Held in Escrow')
-      `).run(testOrderId);
+      await Order.create({
+        _id: testOrderId,
+        placed_time: '10:00 AM',
+        delivery_eta: '45m',
+        delivery_otp: '1234',
+        status: 'locked_escrow',
+        customer_name: 'Patient',
+        customer_address: 'Addr',
+        customer_phone: 'Phone',
+        pharmacy_name: 'MedPlus',
+        pharmacy_hub_id: 'hub-blr-01',
+        pharmacy_address: 'Addr',
+        pharmacy_license: 'Lic',
+        pharmacist_name: 'Pharm',
+        pharmacist_reg: 'Reg',
+        courier_name: 'Cour',
+        courier_phone: 'Phone',
+        courier_rating: 5,
+        vehicle_number: 'KA-01',
+        cold_chain_verified: false,
+        current_distance_km: 0,
+        medicine_name: 'Med',
+        composition: 'Comp',
+        pack_size: 10,
+        batch_number: 'B1',
+        seal_hash: '0x1',
+        price: 100,
+        item_total: 100,
+        packaging_tamper_fee: 12,
+        delivery_fee: 15,
+        platform_convenience: 5,
+        generic_savings: 0,
+        total_paid: 132,
+        escrow_status: 'Held in Escrow',
+      });
 
       const res = await request(app)
         .put(`/api/partner/orders/${testOrderId}/accept`)
@@ -120,8 +153,8 @@ describe('Auth & Partner Operational Routes (Phase 6 Unit & Integration)', () =>
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('pharmacist_audit');
 
-      const updated = db.prepare('SELECT status FROM orders WHERE order_id = ?').get(testOrderId) as { status: string };
-      expect(updated.status).toBe('pharmacist_audit');
+      const updated = await Order.findById(testOrderId);
+      expect(updated?.status).toBe('pharmacist_audit');
     });
   });
 });

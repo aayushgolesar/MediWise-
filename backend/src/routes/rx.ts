@@ -1,10 +1,10 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { randomUUID } from 'crypto';
-import db from '../db.js';
 import { logAuditEvent } from '../audit.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
 import type { OcrFieldResult, PrescriptionAudit, PrescriptionFieldConfidence } from '../types/index.js';
+import { PrescriptionAudit as PrescriptionAuditModel } from '../models/PrescriptionAudit.js';
 
 const router = express.Router();
 router.use(requireAuth, requireRole('patient', 'pharmacist', 'admin'));
@@ -114,37 +114,32 @@ const looksLikeNonPrescription = (fileName: string): boolean => {
   return NON_RX_HINTS.some((hint) => lower.includes(hint));
 };
 
-const persistAudit = (
+const persistAudit = async (
   audit: PrescriptionAudit,
   actorId: string,
   needsReview: boolean,
-): void => {
-  db.prepare(`
-    INSERT OR REPLACE INTO prescription_audits
-      (rx_id, order_id, file_name, upload_date, doctor_name, doctor_reg_no,
-       hospital_clinic, prescribed_for, drug_name, dosage, duration_days, frequency,
-       dispense_limit, ocr_verified, needs_pharmacist_review, confidence_json, schedule_category)
-    VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    audit.rxId,
-    audit.fileName,
-    audit.uploadDate,
-    audit.doctorName,
-    audit.doctorRegNo,
-    audit.hospitalClinic,
-    audit.prescribedFor,
-    audit.drugName ?? '',
-    audit.dosage,
-    audit.durationDays,
-    audit.frequency,
-    audit.dispenseLimitQty,
-    audit.ocrVerified ? 1 : 0,
-    needsReview ? 1 : 0,
-    JSON.stringify(audit.fieldConfidence ?? {}),
-    audit.scheduleCategory,
-  );
+): Promise<void> => {
+  await PrescriptionAuditModel.create({
+    _id: audit.rxId,
+    order_id: null,
+    file_name: audit.fileName,
+    upload_date: audit.uploadDate,
+    doctor_name: audit.doctorName,
+    doctor_reg_no: audit.doctorRegNo,
+    hospital_clinic: audit.hospitalClinic,
+    prescribed_for: audit.prescribedFor,
+    drug_name: audit.drugName ?? '',
+    dosage: audit.dosage,
+    duration_days: audit.durationDays,
+    frequency: audit.frequency,
+    dispense_limit: audit.dispenseLimitQty,
+    ocr_verified: audit.ocrVerified,
+    needs_pharmacist_review: needsReview,
+    confidence_json: JSON.stringify(audit.fieldConfidence ?? {}),
+    schedule_category: audit.scheduleCategory,
+  });
 
-  logAuditEvent('PRESCRIPTION_OCR_PARSED', audit.rxId, actorId, {
+  await logAuditEvent('PRESCRIPTION_OCR_PARSED', audit.rxId, actorId, {
     fileName: audit.fileName,
     needsPharmacistReview: needsReview,
     ocrVerified: audit.ocrVerified,
@@ -235,7 +230,7 @@ router.post('/parse', async (req: AuthenticatedRequest, res) => {
       frequency: { value: 'Once daily at bedtime', confidence: 0.8, needsReview: false },
     };
     const { audit, needsReview } = buildAuditFromFields(fields, fileName, 'Schedule H1');
-    persistAudit(audit, userId, needsReview);
+    await persistAudit(audit, userId, needsReview);
     res.json({
       data: audit,
       message: 'Dev-mode OCR used because GEMINI_API_KEY is not configured.',
@@ -285,7 +280,7 @@ router.post('/parse', async (req: AuthenticatedRequest, res) => {
     };
 
     const { audit, needsReview } = buildAuditFromFields(fields, fileName, mapSchedule(payload.scheduleCategory));
-    persistAudit(audit, userId, needsReview);
+    await persistAudit(audit, userId, needsReview);
     res.json({ data: audit });
   } catch (error) {
     console.error('[Rx OCR] Gemini parse error:', error);

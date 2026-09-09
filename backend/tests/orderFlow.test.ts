@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { signToken, hashPassword } from '../src/security.js';
-import db from '../src/db.js';
+import { User } from '../src/models/User.js';
+import { AuditLog } from '../src/models/AuditLog.js';
 
 describe('Integration Flow: End-to-End Order, Escrow, and Dispute (Phase 6)', () => {
   const app = createApp();
@@ -13,18 +14,29 @@ describe('Integration Flow: End-to-End Order, Escrow, and Dispute (Phase 6)', ()
   let adminToken: string;
   const csrfToken = 'test-csrf-token-1234567890';
 
-  beforeAll(() => {
-    // Seed test users in SQLite if missing
+  beforeAll(async () => {
+    // Seed test users in MongoDB if missing
     const testPasswordHash = hashPassword('TestUserPassword123!');
-    db.prepare(`
-      INSERT OR REPLACE INTO users (id, name, email, phone, password_hash, role, abha_id)
-      VALUES (?, 'Test Patient', 'test.patient@example.com', '+91 98765 43210', ?, 'patient', '12-3456-7812-3451')
-    `).run(testPatientId, testPasswordHash);
+    await User.create({
+      _id: testPatientId,
+      name: 'Test Patient',
+      email: 'test.patient@example.com',
+      phone: '+91 98765 43210',
+      password_hash: testPasswordHash,
+      role: 'patient',
+      abha_id: '12-3456-7812-3451',
+      created_at: new Date().toISOString(),
+    });
 
-    db.prepare(`
-      INSERT OR REPLACE INTO users (id, name, email, phone, password_hash, role)
-      VALUES (?, 'Test Admin', 'test.admin@example.com', '+91 98765 43211', ?, 'admin')
-    `).run(testAdminId, testPasswordHash);
+    await User.create({
+      _id: testAdminId,
+      name: 'Test Admin',
+      email: 'test.admin@example.com',
+      phone: '+91 98765 43211',
+      password_hash: testPasswordHash,
+      role: 'admin',
+      created_at: new Date().toISOString(),
+    });
 
     const now = Math.floor(Date.now() / 1000);
     patientToken = signToken({ sub: testPatientId, role: 'patient', exp: now + 3600 });
@@ -202,7 +214,7 @@ describe('Integration Flow: End-to-End Order, Escrow, and Dispute (Phase 6)', ()
       });
 
     const orderId = orderRes.body.data.orderId;
-    const auditEntries = db.prepare('SELECT * FROM audit_log WHERE entity_id = ?').all(orderId) as Array<{ event_type: string }>;
+    const auditEntries = await AuditLog.find({ entity_id: orderId }).lean();
     expect(auditEntries.length).toBeGreaterThan(0);
     expect(auditEntries.some(e => e.event_type === 'ORDER_PLACED_ESCROW_LOCKED')).toBe(true);
   });

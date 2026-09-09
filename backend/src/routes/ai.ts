@@ -1,9 +1,10 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
-import db from '../db.js';
 import { randomUUID } from 'crypto';
 import { logAuditEvent } from '../audit.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
+import { NoorModerationLog } from '../models/NoorModerationLog.js';
+import { Medicine } from '../models/Medicine.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -89,39 +90,50 @@ const sanitiseHistory = (raw: unknown): ChatTurn[] => {
   return windowed;
 };
 
-const getAboveH1Keywords = (): string[] => {
-  const rows = db.prepare(`
-    SELECT brand_name, generic_name FROM medicines
-    WHERE schedule LIKE '%Schedule X%' OR schedule LIKE '%H1%'
-  `).all() as Array<{ brand_name: string; generic_name: string }>;
-  return rows.flatMap((row) => [row.brand_name, row.generic_name]).filter(Boolean).map((name) => name.toLowerCase());
+const getAboveH1Keywords = async (): Promise<string[]> => {
+  const medicines = await Medicine.find({
+    $or: [
+      { schedule: /Schedule X/i },
+      { schedule: /H1/i }
+    ]
+  }).select('brand_name generic_name').lean();
+  
+  return medicines.flatMap((m) => [m.brand_name, m.generic_name]).filter(Boolean).map((name) => name.toLowerCase());
 };
 
-const detectGuardrail = (prompt: string, response: string): { fired: boolean; risk: 'HIGH' | 'LOW'; matched?: string } => {
+const detectGuardrail = async (prompt: string, response: string): Promise<{ fired: boolean; risk: 'HIGH' | 'LOW'; matched?: string }> => {
   const haystack = `${prompt}\n${response}`.toLowerCase();
   const keyword = CONTROLLED_SCHEDULE_KEYWORDS.find((item) => haystack.includes(item));
   if (keyword) {
     return { fired: true, risk: 'HIGH', matched: keyword };
   }
-  const mentionsControlledDrug = getAboveH1Keywords().some((name) => haystack.includes(name) && /without (an? )?rx|no prescription|skip (the )?rx/.test(haystack));
+  const controlledDrugNames = await getAboveH1Keywords();
+  const mentionsControlledDrug = controlledDrugNames.some((name) => haystack.includes(name) && /without (an? )?rx|no prescription|skip (the )?rx/.test(haystack));
   if (mentionsControlledDrug) {
     return { fired: true, risk: 'HIGH', matched: 'schedule_h1_bypass' };
   }
   return { fired: false, risk: 'LOW' };
 };
 
-const insertModerationLog = (
+const insertModerationLog = async (
   userId: string,
   patientName: string,
   prompt: string,
   response: string,
   guardrailFired: boolean,
   riskLevel: string,
-): void => {
-  db.prepare(`
-    INSERT INTO noor_moderation_log (id, session_id, patient_name, user_prompt, bot_response, guardrail_fired, risk_level)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(randomUUID(), userId, patientName, prompt, response, guardrailFired ? 1 : 0, riskLevel);
+): Promise<void> => {
+  await NoorModerationLog.create({
+    _id: randomUUID(),
+    session_id: userId,
+    patient_name: patientName,
+    user_prompt: prompt,
+    bot_response: response,
+    guardrail_fired: guardrailFired,
+    risk_level: riskLevel,
+    created_at: new Date().toISOString(),
+    reviewed: false,
+  });
 };
 
 /**
@@ -145,14 +157,14 @@ router.post('/chat', async (req: AuthenticatedRequest, res) => {
 
   const safeMessage = clampText(message.trim(), MAX_MESSAGE_CHARS);
   const chatHistory = sanitiseHistory(history);
-  const promptScreen = detectGuardrail(safeMessage, '');
+  const promptScreen = await detectGuardrail(safeMessage, '');
 
   if (!GEMINI_API_KEY) {
     const fallbackResponse = promptScreen.fired
       ? `Under CDSCO Drugs & Cosmetics Act regulations, inquiries involving ${promptScreen.matched?.toUpperCase() || 'controlled substances'} or acute safety concerns cannot be processed by AI. Please contact emergency services (112) or your nearest healthcare facility immediately.`
       : `[Dev Mode — No GEMINI_API_KEY] Noor received: "${safeMessage}". Generic medicines are verified bioequivalent by CDSCO. Always consult your doctor for prescription adjustments.`;
 
-    insertModerationLog(userId, patientName, safeMessage, fallbackResponse, promptScreen.fired, promptScreen.risk);
+    await insertModerationLog(userId, patientName, safeMessage, fallbackResponse, promptScreen.fired, promptScreen.risk);
     res.json({ data: { response: fallbackResponse, guardrailFired: promptScreen.fired } });
     return;
   }
@@ -167,9 +179,9 @@ router.post('/chat', async (req: AuthenticatedRequest, res) => {
 
     const result = await chat.sendMessage({ message: safeMessage });
     const responseText = result.text ?? 'I could not generate a response. Please try again.';
-    const guardrail = detectGuardrail(safeMessage, responseText);
+    const guardrail = await detectGuardrail(safeMessage, responseText);
 
-    insertModerationLog(userId, patientName, safeMessage, responseText, guardrail.fired, guardrail.risk);
+    await insertModerationLog(userId, patientName, safeMessage, responseText, guardrail.fired, guardrail.risk);
     res.json({ data: { response: responseText, guardrailFired: guardrail.fired } });
   } catch (error) {
     console.error('[Noor AI] Gemini API error:', error);
@@ -181,35 +193,46 @@ router.post('/chat', async (req: AuthenticatedRequest, res) => {
  * GET /api/ai/moderation
  * Admin moderation queue for NoorModerationView.
  */
-router.get('/moderation', requireRole('admin'), (_req, res) => {
-  const rows = db.prepare('SELECT * FROM noor_moderation_log ORDER BY created_at DESC LIMIT 50').all();
-  res.json({ data: rows });
+router.get('/moderation', requireRole('admin'), async (_req, res, next) => {
+  try {
+    const logs = await NoorModerationLog.find().sort({ created_at: -1 }).limit(50).lean();
+    res.json({ data: logs });
+  } catch (error: unknown) { next(error); }
 });
 
 /**
  * PUT /api/ai/moderation/:id
  * Approve or redact a logged Noor response.
  */
-router.put('/moderation/:id', requireRole('admin'), (req: AuthenticatedRequest, res) => {
-  const id = req.params.id;
-  const existing = db.prepare('SELECT id FROM noor_moderation_log WHERE id = ?').get(id);
-  if (!existing) {
-    res.status(404).json({ error: 'Log entry not found' });
-    return;
-  }
+router.put('/moderation/:id', requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const id = req.params.id;
+    const existing = await NoorModerationLog.findById(id);
+    if (!existing) {
+      res.status(404).json({ error: 'Log entry not found' });
+      return;
+    }
 
-  const { action } = req.body as { action?: unknown };
-  if (action === 'redact') {
-    const redactedText = '[REDACTED BY CLINICAL MODERATOR: Response breached statutory CDSCO guidance standards.]';
-    db.prepare("UPDATE noor_moderation_log SET bot_response = ?, reviewed = 1, risk_level = 'REDACTED' WHERE id = ?").run(redactedText, id);
-    logAuditEvent('NOOR_RESPONSE_MODERATED', id, req.auth?.sub ?? null, { action: 'redact' });
-    res.json({ data: { id, bot_response: redactedText, status: 'Redacted', reviewed: true } });
-    return;
-  }
+    const { action } = req.body as { action?: unknown };
+    if (action === 'redact') {
+      const redactedText = '[REDACTED BY CLINICAL MODERATOR: Response breached statutory CDSCO guidance standards.]';
+      await NoorModerationLog.findByIdAndUpdate(id, {
+        bot_response: redactedText,
+        reviewed: true,
+        risk_level: 'REDACTED',
+      });
+      await logAuditEvent('NOOR_RESPONSE_MODERATED', id, req.auth?.sub ?? null, { action: 'redact' });
+      res.json({ data: { id, bot_response: redactedText, status: 'Redacted', reviewed: true } });
+      return;
+    }
 
-  db.prepare("UPDATE noor_moderation_log SET reviewed = 1, risk_level = 'LOW' WHERE id = ?").run(id);
-  logAuditEvent('NOOR_RESPONSE_MODERATED', id, req.auth?.sub ?? null, { action: 'approve' });
-  res.json({ data: { id, status: 'Approved', reviewed: true } });
+    await NoorModerationLog.findByIdAndUpdate(id, {
+      reviewed: true,
+      risk_level: 'LOW',
+    });
+    await logAuditEvent('NOOR_RESPONSE_MODERATED', id, req.auth?.sub ?? null, { action: 'approve' });
+    res.json({ data: { id, status: 'Approved', reviewed: true } });
+  } catch (error: unknown) { next(error); }
 });
 
 export default router;
