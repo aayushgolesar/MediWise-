@@ -17,7 +17,7 @@
     "test:frontend": "npm run test:e2e --prefix frontend",
     "seed": "npm run seed --prefix backend",
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
-    "start": "node --use-system-ca --import tsx backend/src/index.ts",
+    "start": "cd backend && npm run start",
     "start:backend": "npm run start --prefix backend",
     "start:frontend": "npm run dev --prefix frontend"
   },
