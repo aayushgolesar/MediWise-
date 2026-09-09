@@ -38,7 +38,13 @@ if (process.env.NODE_ENV !== 'test') {
       console.log(`   Gemini AI:    ${process.env.GEMINI_API_KEY ? '✅ Configured' : '⚠️  Dev fallback mode'}\n`);
     });
   }).catch((error: unknown) => {
-    console.error('Failed to connect to MongoDB:', error);
+    console.error('❌ Failed to connect to MongoDB Atlas');
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    console.error('\nPossible causes:');
+    console.error('1. MONGODB_URI environment variable not set on Render');
+    console.error('2. Render IP not whitelisted in MongoDB Atlas Network Access');
+    console.error('3. MongoDB credentials are incorrect');
+    console.error('4. Network connection timeout (check firewall)');
     process.exitCode = 1;
   });
 }
