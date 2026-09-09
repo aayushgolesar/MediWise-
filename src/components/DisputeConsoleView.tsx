@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { DISPUTE_CASE_SAMPLE } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { getDisputeCases, resolveDispute } from '../api/admin.js';
+import type { DisputeCase } from '../types';
 import { 
   Scale, 
   ShieldAlert, 
@@ -15,14 +16,22 @@ import {
 } from 'lucide-react';
 
 export const DisputeConsoleView: React.FC = () => {
-  const [caseData, setCaseData] = useState(DISPUTE_CASE_SAMPLE);
+  const [caseData, setCaseData] = useState<DisputeCase | null>(null);
   const [adjudicationChoice, setAdjudicationChoice] = useState<'refund' | 'reject' | 'split' | 'escalate'>('refund');
   const [adjudicated, setAdjudicated] = useState<boolean>(false);
   const [activePhotoView, setActivePhotoView] = useState<'side_by_side' | 'claim' | 'baseline'>('side_by_side');
 
-  const handleExecuteAdjudication = () => {
-    setAdjudicated(true);
+  useEffect(() => {
+    void getDisputeCases().then((cases) => setCaseData(cases[0] ?? null));
+  }, []);
+
+  const handleExecuteAdjudication = (): void => {
+    if (!caseData) return;
+    const resolution = adjudicationChoice === 'refund' ? 'Refund Approved' : adjudicationChoice === 'reject' ? 'Dispute Rejected' : 'Hub Penalized';
+    void resolveDispute(caseData.caseId, resolution).then(() => setAdjudicated(true));
   };
+
+  if (!caseData) return <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-slate-500">Loading dispute cases…</div>;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">

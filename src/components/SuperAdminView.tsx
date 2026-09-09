@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { TENANT_HUBS_SAMPLE } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { getTenantHubs } from '../api/admin.js';
 import { TenantHub } from '../types';
 import { 
   Server, 
@@ -17,10 +17,14 @@ import {
 } from 'lucide-react';
 
 export const SuperAdminView: React.FC = () => {
-  const [tenants, setTenants] = useState<TenantHub[]>(TENANT_HUBS_SAMPLE);
+  const [tenants, setTenants] = useState<TenantHub[]>([]);
   const [showProvisionModal, setShowProvisionModal] = useState<boolean>(false);
   const [newHubName, setNewHubName] = useState<string>('');
   const [newCity, setNewCity] = useState<string>('Bengaluru');
+
+  useEffect(() => {
+    void getTenantHubs().then(setTenants).catch(() => setTenants([]));
+  }, []);
 
   const handleProvisionTenant = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { Medicine, PharmacyOffer, PatientProfile, PrescriptionAudit, OrderDetail, QuarantineItem, ReassignmentTask, DisputeCase, TenantHub } from '../types';
+import type { Medicine, PharmacyOffer, PatientProfile, PrescriptionAudit, OrderDetail, QuarantineItem, ReassignmentTask, DisputeCase, TenantHub } from '../types/index.js';
 
 export const MEDICINES_CATALOG: Medicine[] = [
   {
@@ -695,6 +695,7 @@ export const INITIAL_PRESCRIPTION: PrescriptionAudit = {
   doctorRegNo: 'KMC-48192 / MCI-2009',
   hospitalClinic: 'Manipal Heart Institute & Cardiology Clinic',
   prescribedFor: 'Anika Sharma (48y / F)',
+  drugName: 'Atorvastatin Calcium 20 mg',
   dosage: 'Tab. Atorvastatin 20mg',
   durationDays: 30,
   frequency: '1 tablet once daily at bedtime (HS)',

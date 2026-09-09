@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthUser, UserRole, AppRole } from '../types';
+import { register, signIn, validateRegulatory } from '../api/auth.js';
 import { 
   ShieldCheck, 
   Lock, 
@@ -173,7 +174,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }, 600);
   };
 
-  const handleSignInSubmit = (e: React.FormEvent) => {
+  const handleSignInSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -198,50 +199,39 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // Construct user according to role
-      const defaultUser: AuthUser = {
-        id: `usr-${Date.now()}`,
-        name: selectedRole === 'patient' 
-          ? 'Anika Sharma' 
-          : selectedRole === 'pharmacist' 
-          ? 'K. Ramesh, B.Pharm' 
-          : selectedRole === 'admin' 
-          ? 'Dr. Vikram Roy' 
-          : 'Cipla Enterprise Rep',
-        email: loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@mediwise.health`,
-        phone: loginMethod === 'otp' ? `+91 ${otpPhone}` : '+91 98841 20492',
-        role: selectedRole,
-        abhaId: selectedRole === 'patient' ? '91-4821-9920-1123@abdm' : undefined,
-        pharmacyHubName: selectedRole === 'pharmacist' ? 'MedPlus Central Indiranagar (Hub KA-1204)' : undefined,
-        pharmacistRegNo: selectedRole === 'pharmacist' ? 'KSPC-48192-A' : undefined,
-        cdscoLicense: selectedRole === 'pharmacist' ? 'KA-BLR-20B-10928' : undefined
-      };
-
-      const targetRole: AppRole = 
-        selectedRole === 'patient' ? 'marketplace' :
-        selectedRole === 'pharmacist' ? 'partner_portal' :
-        selectedRole === 'admin' ? 'super_admin' : 'oem_portal';
-
-      onLoginSuccess(defaultUser, targetRole);
-    }, 500);
+    const email = loginMethod === 'otp' ? `${otpPhone}@mediwise.health` : loginIdentifier;
+    void signIn(email, loginMethod === 'otp' ? otpCode : loginPassword)
+      .then(({ user }) => onLoginSuccess(user))
+      .catch((error: unknown) => setErrorMsg(error instanceof Error ? error.message : 'Unable to sign in.'))
+      .finally(() => setLoading(false));
   };
 
-  const handleValidateAbha = () => {
+  const handleValidateAbha = async () => {
     if (!regAbhaId.trim()) {
       setErrorMsg('Please enter an ABHA Health ID or 14-digit number to validate.');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    setErrorMsg(null);
+    try {
+      const res = await validateRegulatory('abha', regAbhaId);
+      if (res.valid) {
+        setAbhaValidated(true);
+        if (res.normalized) {
+          setRegAbhaId(res.normalized);
+        }
+      } else {
+        setAbhaValidated(false);
+        setErrorMsg(res.error || 'Invalid ABHA ID format or checksum.');
+      }
+    } catch {
+      setErrorMsg('Unable to reach validation service. Please check your connection.');
+    } finally {
       setLoading(false);
-      setAbhaValidated(true);
-      setErrorMsg(null);
-    }, 500);
+    }
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -275,27 +265,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      const newUser: AuthUser = {
-        id: `usr-${Date.now()}`,
-        name: selectedRole === 'patient' ? regName : pharmacistName || 'Hub Administrator',
-        email: regEmail || `${regPhone}@mediwise.health`,
-        phone: `+91 ${regPhone || '9884120492'}`,
-        role: selectedRole,
-        abhaId: regAbhaId ? regAbhaId : undefined,
-        pharmacyHubName: selectedRole === 'pharmacist' ? pharmacyName : undefined,
-        pharmacistRegNo: selectedRole === 'pharmacist' ? councilRegNo : undefined,
-        cdscoLicense: selectedRole === 'pharmacist' ? cdscoLicense : undefined
-      };
-
-      const targetRole: AppRole = 
-        selectedRole === 'patient' ? 'marketplace' :
-        selectedRole === 'pharmacist' ? 'partner_portal' :
-        selectedRole === 'admin' ? 'super_admin' : 'oem_portal';
-
-      onLoginSuccess(newUser, targetRole);
-    }, 600);
+    void register({
+      name: selectedRole === 'patient' ? regName : pharmacistName || pharmacyName || 'Hub Administrator',
+      email: regEmail || `${regPhone}@mediwise.health`,
+      phone: regPhone || '9884120492',
+      password: regPassword || 'phase2-demo-password',
+      role: selectedRole,
+      abhaId: regAbhaId || undefined,
+      pharmacyHubName: selectedRole === 'pharmacist' ? pharmacyName : undefined,
+      pharmacistRegNo: selectedRole === 'pharmacist' ? councilRegNo : undefined,
+      cdscoLicense: selectedRole === 'pharmacist' ? cdscoLicense : undefined,
+    }).then(({ user }) => onLoginSuccess(user))
+      .catch((error: unknown) => setErrorMsg(error instanceof Error ? error.message : 'Unable to register.'))
+      .finally(() => setLoading(false));
   };
 
   return (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { REASSIGNMENT_TASK } from '../data/mockData';
+import { assignOrderToHub, getReassignmentTasks, type ReassignmentTaskData } from '../api/admin.js';
 import { 
   Clock, 
   ArrowRightLeft, 
@@ -14,10 +14,18 @@ import {
 } from 'lucide-react';
 
 export const ReassignmentEngineView: React.FC = () => {
-  const [task, setTask] = useState(REASSIGNMENT_TASK);
-  const [countdown, setCountdown] = useState<number>(task.timeRemainingSec);
+  const [task, setTask] = useState<ReassignmentTaskData | null>(null);
+  const [countdown, setCountdown] = useState<number>(0);
   const [reassignedHub, setReassignedHub] = useState<string | null>(null);
   const [strikeIssued, setStrikeIssued] = useState<boolean>(false);
+
+  useEffect(() => {
+    void getReassignmentTasks().then((tasks) => {
+      const firstTask = tasks[0] ?? null;
+      setTask(firstTask);
+      setCountdown(firstTask?.timeRemainingSec ?? 0);
+    });
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -32,10 +40,15 @@ export const ReassignmentEngineView: React.FC = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleExecuteReassignment = (hubId: string, hubName: string) => {
-    setReassignedHub(hubName);
-    setStrikeIssued(true);
+  const handleExecuteReassignment = (hubId: string, hubName: string): void => {
+    if (!task) return;
+    void assignOrderToHub(task.orderId, hubId).then(() => {
+      setReassignedHub(hubName);
+      setStrikeIssued(true);
+    });
   };
+
+  if (!task) return <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-slate-500">Loading reassignment tasks…</div>;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">

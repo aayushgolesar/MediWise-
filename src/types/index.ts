@@ -89,6 +89,23 @@ export interface PatientProfile {
   phone: string;
 }
 
+export interface OcrFieldResult {
+  value: string;
+  confidence: number;
+  needsReview: boolean;
+}
+
+export interface PrescriptionFieldConfidence {
+  doctorName: OcrFieldResult;
+  doctorRegNo: OcrFieldResult;
+  hospitalClinic: OcrFieldResult;
+  prescribedFor: OcrFieldResult;
+  drugName: OcrFieldResult;
+  dosage: OcrFieldResult;
+  durationDays: OcrFieldResult;
+  frequency: OcrFieldResult;
+}
+
 export interface PrescriptionAudit {
   rxId: string;
   fileName: string;
@@ -97,11 +114,14 @@ export interface PrescriptionAudit {
   doctorRegNo: string;
   hospitalClinic: string;
   prescribedFor: string;
+  drugName?: string;
   dosage: string;
   durationDays: number;
   frequency: string;
   dispenseLimitQty: number;
   ocrVerified: boolean;
+  needsPharmacistReview?: boolean;
+  fieldConfidence?: PrescriptionFieldConfidence;
   scheduleCategory: 'Schedule H' | 'Schedule H1' | 'Schedule X' | 'OTC';
 }
 

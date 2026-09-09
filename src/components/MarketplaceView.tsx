@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { MEDICINES_CATALOG } from '../data/mockData';
+import React, { useState, useMemo, useEffect } from 'react';
+import { getMedicineById, getMedicines } from '../api/medicines.js';
 import { PharmacyOffer, Medicine } from '../types';
 import { 
   ShieldCheck, 
@@ -46,22 +46,52 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({
   const [sortBy, setSortBy] = useState<'recommended' | 'price_asc' | 'savings_desc'>('recommended');
 
   // Currently Selected Medicine for detailed view & offers
-  const [selectedMedicineId, setSelectedMedicineId] = useState<string>(
-    initialMedicineId || MEDICINES_CATALOG[0].id
-  );
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [selectedMedicineId, setSelectedMedicineId] = useState<string>(initialMedicineId ?? '');
   const [selectedPack, setSelectedPack] = useState<number>(30);
   const [selectedOfferId, setSelectedOfferId] = useState<string>('offer-medplus-indiranagar');
   const [heartbeatTime, setHeartbeatTime] = useState<string>('12 seconds ago');
   const [procurementRequested, setProcurementRequested] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadMedicines = async (): Promise<void> => {
+      setIsLoading(true);
+      setErrorMessage(null);
+      try {
+        const catalog = await getMedicines();
+        if (!isMounted) return;
+        if (catalog.length === 0) {
+          setErrorMessage('No medicines are currently available.');
+          return;
+        }
+        const initialId = initialMedicineId && catalog.some(medicine => medicine.id === initialMedicineId)
+          ? initialMedicineId
+          : catalog[0].id;
+        const selectedMedicine = await getMedicineById(initialId);
+        if (!isMounted) return;
+        setMedicines(catalog.map(medicine => medicine.id === selectedMedicine.id ? selectedMedicine : medicine));
+        setSelectedMedicineId(initialId);
+      } catch (error: unknown) {
+        if (isMounted) setErrorMessage(error instanceof Error ? error.message : 'Unable to load the medicine catalog.');
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    void loadMedicines();
+    return () => { isMounted = false; };
+  }, [initialMedicineId]);
 
   // Active Medicine Object
   const currentMedicine = useMemo(() => {
-    return MEDICINES_CATALOG.find(m => m.id === selectedMedicineId) || MEDICINES_CATALOG[0];
-  }, [selectedMedicineId]);
+    return medicines.find(m => m.id === selectedMedicineId) ?? null;
+  }, [medicines, selectedMedicineId]);
 
   // Pack details
   const selectedPackOption = useMemo(() => {
-    return currentMedicine.packOptions.find(p => p.count === selectedPack) || currentMedicine.packOptions[0];
+    return currentMedicine?.packOptions.find(p => p.count === selectedPack) ?? currentMedicine?.packOptions[0] ?? null;
   }, [currentMedicine, selectedPack]);
 
   const packMultiplier = (selectedPackOption?.count || 30) / 10;
@@ -70,7 +100,7 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({
   const filteredMedicines = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
-    return MEDICINES_CATALOG.filter(med => {
+    return medicines.filter(med => {
       // Text Match
       const matchesText = !q || (
         med.brandName.toLowerCase().includes(q) ||
@@ -103,7 +133,7 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({
       }
       return 0; // recommended natural order
     });
-  }, [searchQuery, selectedCategory, inStockOnly, selectedSchedule, sortBy]);
+  }, [medicines, searchQuery, selectedCategory, inStockOnly, selectedSchedule, sortBy]);
 
   // Quick Search Chips
   const popularSearches = [
@@ -131,16 +161,21 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({
   ];
 
   const handleSelectMedicine = (med: Medicine) => {
-    setSelectedMedicineId(med.id);
-    setSelectedPack(med.packOptions[0]?.count || 10);
-    if (med.pharmacyOffers.length > 0) {
-      setSelectedOfferId(med.pharmacyOffers[0].id);
-    }
+    void getMedicineById(med.id).then((detail) => {
+      setMedicines(previous => previous.map(item => item.id === detail.id ? detail : item));
+      setSelectedMedicineId(detail.id);
+      setSelectedPack(detail.packOptions[0]?.count ?? 10);
+      setSelectedOfferId(detail.pharmacyOffers[0]?.id ?? '');
+    }).catch((error: unknown) => setErrorMessage(error instanceof Error ? error.message : 'Unable to load pharmacy offers.'));
   };
 
   const handleRefreshFeed = () => {
     setHeartbeatTime('Just now (Ingestion Revalidated)');
   };
+
+  if (isLoading) return <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-slate-500">Loading verified medicine catalog…</div>;
+  if (errorMessage && medicines.length === 0) return <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-red-600">{errorMessage}</div>;
+  if (!currentMedicine) return <div className="max-w-7xl mx-auto px-4 py-8 text-sm text-slate-500">No medicine selected.</div>;
 
   const isSearchActive = searchQuery.trim().length > 0;
   const isPresent = filteredMedicines.length > 0;
@@ -267,7 +302,7 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({
                 </div>
 
                 <div className="text-[11px] text-slate-400">
-                  Showing {filteredMedicines.length} of {MEDICINES_CATALOG.length} catalog items
+                  Showing {filteredMedicines.length} of {medicines.length} catalog items
                 </div>
               </div>
             )}

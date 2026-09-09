@@ -1,16 +1,7 @@
-import React, { useState } from 'react';
-import { MEDICINES_CATALOG } from '../data/mockData';
-import { 
-  Sparkles, 
-  X, 
-  Send, 
-  Bot, 
-  ShieldAlert, 
-  CheckCircle2, 
-  User, 
-  AlertTriangle,
-  ChevronDown
-} from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { askNoor } from '../api/ai.js';
+import type { ChatMessage } from '../api/ai.js';
+import { Sparkles, X, Send, Bot } from 'lucide-react';
 
 interface AskNoorWidgetProps {
   isOpen: boolean;
@@ -33,6 +24,8 @@ export const AskNoorWidget: React.FC<AskNoorWidgetProps> = ({ isOpen, onClose })
     }
   ]);
   const [inputValue, setInputValue] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const chatHistoryRef = useRef<ChatMessage[]>([]);
 
   const quickPrompts = [
     'Is generic Atorvastatin bioequivalent to Lipitor?',
@@ -41,87 +34,53 @@ export const AskNoorWidget: React.FC<AskNoorWidgetProps> = ({ isOpen, onClose })
     'Can I buy Schedule H1 medicines without an Rx?'
   ];
 
-  const handleSendMessage = (textToSend?: string) => {
-    const text = textToSend || inputValue;
-    if (!text.trim()) return;
+  const handleSendMessage = async (textToSend?: string): Promise<void> => {
+    const text = (textToSend ?? inputValue).trim();
+    if (!text || isLoading) return;
 
     const userMsg: Message = {
       id: `msg-${Date.now()}`,
       sender: 'user',
-      text
+      text,
     };
 
     setMessages(prev => [...prev, userMsg]);
     if (!textToSend) setInputValue('');
 
-    // Simulate intelligent response with safety guardrail detection
-    setTimeout(() => {
-      let botResponse: Message;
+    setIsLoading(true);
 
-      const lower = text.toLowerCase();
-      
-      // Check if user is asking about medicine presence or stock
-      const matchedMed = MEDICINES_CATALOG.find(m => 
-        lower.includes(m.genericName.toLowerCase()) || 
-        lower.includes(m.brandName.toLowerCase()) ||
-        lower.includes(m.bioequivalentTo.toLowerCase().split(' ')[0]) ||
-        (m.id === 'med-paracetamol-650' && (lower.includes('dolo') || lower.includes('paracetamol') || lower.includes('calpol'))) ||
-        (m.id === 'med-panto-40' && (lower.includes('pan 40') || lower.includes('pantoprazole'))) ||
-        (m.id === 'med-metformin-500' && lower.includes('metformin')) ||
-        (m.id === 'med-amoxyclav-625' && (lower.includes('augmentin') || lower.includes('amoxicillin'))) ||
-        (m.id === 'med-telmi-40' && (lower.includes('telmisartan') || lower.includes('telma'))) ||
-        (m.id === 'med-azithro-500' && (lower.includes('azithromycin') || lower.includes('azee')))
-      );
+    try {
+      const result = await askNoor(text, chatHistoryRef.current);
 
-      if (lower.includes('2 tablets') || lower.includes('double') || lower.includes('missed yesterday')) {
-        botResponse = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'noor',
-          text: '⚠️ Statutory Clinical Safety Directive (FR-SUP-02): Never double up on your statin dosage. Taking two 20mg tablets together (40mg unmonitored) carries a risk of acute rhabdomyolysis and hepatic enzyme elevation. Take only your regular 20mg dose tonight at bedtime, and consult Dr. Rajesh Iyer if you experience ongoing missed doses.',
-          isGuardrailRefusal: true
-        };
-      } else if (matchedMed) {
-        if (matchedMed.inStock) {
-          botResponse = {
-            id: `msg-${Date.now() + 1}`,
-            sender: 'noor',
-            text: `✅ Yes! ${matchedMed.brandName} (${matchedMed.genericName}) is PRESENT in our local marketplace. There are ${matchedMed.stockCount} units available across ${matchedMed.hubCount} verified pharmacy hubs in Indiranagar, starting at ₹${matchedMed.startingPrice.toFixed(2)} (${matchedMed.discountPercent}% discount vs standard MRP ₹${matchedMed.mrpReference.toFixed(2)}). It is 100% bioequivalent to ${matchedMed.bioequivalentTo}.`
-          };
-        } else {
-          botResponse = {
-            id: `msg-${Date.now() + 1}`,
-            sender: 'noor',
-            text: `⚠️ ${matchedMed.brandName} is cataloged under ${matchedMed.schedule}, but is currently OUT OF STOCK across local Bengaluru micro-hubs. You can request a priority hub procurement dispatch directly from the Marketplace screen.`
-          };
-        }
-      } else if (lower.includes('bioequivalent') || lower.includes('lipitor') || lower.includes('generic')) {
-        botResponse = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'noor',
-          text: 'Yes! Generic Atorvastatin IP 20mg is 100% bioequivalent to Lipitor / Atorva. It undergoes identical in-vivo pharmacokinetic testing (Cmax and AUC within 80-125% confidence interval) approved under CDSCO Form 28 GMP standards.'
-        };
-      } else if (lower.includes('escrow') || lower.includes('guarantee')) {
-        botResponse = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'noor',
-          text: 'With MediWise Escrow, your payment is locked in a clearinghouse account and is NOT transferred to the pharmacy until you inspect the tamper-proof hologram seal at your doorstep and share the 4-digit Delivery OTP with the rider.'
-        };
-      } else if (lower.includes('without rx') || lower.includes('prescription')) {
-        botResponse = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'noor',
-          text: 'Atorvastatin is a Schedule H medication under the Drugs & Cosmetics Act, 1940. It strictly cannot be dispensed without a valid registered medical practitioner prescription.'
-        };
-      } else {
-        botResponse = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'noor',
-          text: `Thank you for your question regarding "${text}". MediWise coordinates directly with licensed physical hubs like MedPlus Indiranagar (Hub #KA-1204) to provide verified generic medicines with full tamper-evident custody.`
-        };
-      }
+      // Update chat history for context continuity
+      const newTurns: ChatMessage[] = [
+        { role: 'user', parts: [{ text }] },
+        { role: 'model', parts: [{ text: result.response }] },
+      ];
+      chatHistoryRef.current = [...chatHistoryRef.current, ...newTurns].slice(-8);
 
-      setMessages(prev => [...prev, botResponse]);
-    }, 600);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'noor',
+          text: result.response,
+          isGuardrailRefusal: result.guardrailFired,
+        },
+      ]);
+    } catch {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'noor',
+          text: '⚠️ Noor is temporarily unavailable. Please ensure the MediWise server is running (`npm run server`) and try again.',
+          isGuardrailRefusal: false,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -203,9 +162,11 @@ export const AskNoorWidget: React.FC<AskNoorWidgetProps> = ({ isOpen, onClose })
         />
         <button
           onClick={() => handleSendMessage()}
-          className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer"
+          disabled={isLoading || !inputValue.trim()}
+          aria-label="Send message to Noor"
+          className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 text-white transition cursor-pointer"
         >
-          <Send className="w-4 h-4" />
+          <Send className={`w-4 h-4 ${isLoading ? 'animate-pulse' : ''}`} />
         </button>
       </div>
     </div>

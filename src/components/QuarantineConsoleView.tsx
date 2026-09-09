@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { QUARANTINE_ITEMS } from '../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { getQuarantineItems, updateQuarantineItem } from '../api/admin.js';
 import { QuarantineItem } from '../types';
 import { 
   AlertTriangle, 
@@ -16,21 +16,29 @@ import {
 } from 'lucide-react';
 
 export const QuarantineConsoleView: React.FC = () => {
-  const [items, setItems] = useState<QuarantineItem[]>(QUARANTINE_ITEMS);
+  const [items, setItems] = useState<QuarantineItem[]>([]);
   const [selectedSeverity, setSelectedSeverity] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<'quarantined' | 'scorecard'>('quarantined');
+
+  useEffect(() => {
+    void getQuarantineItems().then(setItems).catch(() => setItems([]));
+  }, []);
 
   const filteredItems = items.filter(item => {
     if (selectedSeverity === 'All') return true;
     return item.severity === selectedSeverity;
   });
 
-  const handleRelease = (id: string) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, status: 'Released' } : item));
+  const handleRelease = (id: string): void => {
+    void updateQuarantineItem(id, 'release').then(({ status }) => {
+      setItems(previous => previous.map(item => item.id === id ? { ...item, status: status as QuarantineItem['status'] } : item));
+    });
   };
 
-  const handleForceQuarantine = (id: string) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, status: 'Quarantined' } : item));
+  const handleForceQuarantine = (id: string): void => {
+    void updateQuarantineItem(id, 'escalate').then(({ status }) => {
+      setItems(previous => previous.map(item => item.id === id ? { ...item, status: status as QuarantineItem['status'] } : item));
+    });
   };
 
   return (
