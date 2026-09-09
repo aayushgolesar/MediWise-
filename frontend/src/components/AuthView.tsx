@@ -624,7 +624,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={regName}
                         onChange={(e) => setRegName(e.target.value)}
                         placeholder="e.g. Anika Sharma"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                     </div>
 
@@ -639,7 +639,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={regPhone}
                         onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, ''))}
                         placeholder="9884120492"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -654,7 +654,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
                       placeholder="anika.sharma@example.com"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
 
@@ -673,7 +673,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={regAbhaId}
                         onChange={(e) => { setRegAbhaId(e.target.value); setAbhaValidated(false); }}
                         placeholder="e.g. 91-4821-9920-1123@abdm or 14-digit ABHA"
-                        className="grow px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="grow px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                       <button
                         type="button"
@@ -705,7 +705,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={regAddress}
                         onChange={(e) => setRegAddress(e.target.value)}
                         placeholder="e.g. Indiranagar, Bengaluru"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -718,7 +718,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={regPincode}
                         onChange={(e) => setRegPincode(e.target.value.replace(/\D/g, ''))}
                         placeholder="560038"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -733,7 +733,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
                           placeholder="Min 6 characters"
-                          className="w-full pl-3 pr-8 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          className="w-full pl-3 pr-8 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         />
                         <button
                           type="button"
@@ -754,7 +754,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                           value={regConfirmPassword}
                           onChange={(e) => setRegConfirmPassword(e.target.value)}
                           placeholder="Re-type password"
-                          className="w-full pl-3 pr-8 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          className="w-full pl-3 pr-8 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         />
                         <button
                           type="button"
