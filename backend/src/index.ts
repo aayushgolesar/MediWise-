@@ -1,11 +1,8 @@
-import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createApp } from './app.js';
 import { initRealtime } from './realtime.js';
 import { connectDB } from './db.js';
-
-dotenv.config();
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   throw new Error('FATAL: JWT_SECRET must be set to at least 32 characters.');
