@@ -19,6 +19,8 @@ interface TokenPayload {
 
 interface AuthenticatedRequest extends Request {
   auth?: Pick<TokenPayload, 'sub' | 'role'>;
+  body: Record<string, unknown>;
+  params: Record<string, string>;
 }
 
 const encodeBase64Url = (value: string): string => Buffer.from(value).toString('base64url');

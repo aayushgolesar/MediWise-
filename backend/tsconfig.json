@@ -8,6 +8,6 @@
     "strict": false,
     "noEmit": true
   },
-  "include": ["src", "tests"],
-  "exclude": ["tests/e2e.spec.ts", "src/seed.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/seed.ts", "src/migrate-sqlite-to-mongo.ts", "tests/**/*"]
 }
