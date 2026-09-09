@@ -467,7 +467,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={loginIdentifier}
                         onChange={(e) => setLoginIdentifier(e.target.value)}
                         placeholder={selectedRole === 'patient' ? 'e.g. anika.sharma@example.com or 9884120492' : 'e.g. ramesh.k@medplusindia.com'}
-                        className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     </div>
@@ -491,7 +491,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         placeholder="Enter your confidential password"
-                        className="w-full pl-9 pr-10 py-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="w-full pl-9 pr-10 py-2.5 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                       <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                       <button
@@ -521,7 +521,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         value={otpPhone}
                         onChange={(e) => setOtpPhone(e.target.value.replace(/\D/g, ''))}
                         placeholder="9884120492"
-                        className="grow px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-mono tracking-wider focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        className="grow px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 tracking-wider focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                       />
                       {!otpSent && (
                         <button
@@ -557,7 +557,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                             value={otpCode}
                             onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                             placeholder="492188"
-                            className="grow px-3 py-2.5 border border-slate-300 rounded-xl text-center text-base font-mono font-bold tracking-widest bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            className="grow px-3 py-2.5 border border-slate-300 rounded-xl text-center text-base font-mono font-bold text-slate-900 tracking-widest bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                           />
                           <button
                             type="button"
