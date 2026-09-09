@@ -64,7 +64,7 @@ export function calculateGst(platformFee: number) {
  */
 router.post('/create-order', requireAuth, async (req: AuthenticatedRequest, res, next) => {
   try {
-    const body = req.body as CreatePaymentOrderPayload;
+    const body = (req.body as unknown) as CreatePaymentOrderPayload;
     const { itemTotal, packagingTamperFee = 12, deliveryFee = 15, platformConvenience = 5, paymentMethod = 'upi' } = body;
 
     const { cgst, sgst } = calculateGst(platformConvenience);
@@ -114,7 +114,7 @@ router.post('/create-order', requireAuth, async (req: AuthenticatedRequest, res,
  */
 router.post('/verify', requireAuth, async (req: AuthenticatedRequest, res, next) => {
   try {
-    const { gatewayOrderId, gatewayPaymentId, signature, orderId } = req.body as VerifyPaymentPayload;
+    const { gatewayOrderId, gatewayPaymentId, signature, orderId } = (req.body as unknown) as VerifyPaymentPayload;
 
     if (!gatewayOrderId || !gatewayPaymentId || !signature) {
       res.status(400).json({ error: 'Missing payment verification credentials' });

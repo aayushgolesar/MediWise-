@@ -9,5 +9,5 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/seed.ts", "src/migrate-sqlite-to-mongo.ts", "tests/**/*"]
+  "exclude": ["src/seed.ts", "src/migrate-sqlite-to-mongo.ts", "src/test-setup.ts", "tests/**/*"]
 }
