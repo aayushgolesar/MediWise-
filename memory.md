@@ -12,7 +12,7 @@ The platform connects **patients** seeking affordable generic medicines with **l
 
 The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content moderation support powered by Google Gemini.
 
-**Status**: Active development — Phase 6 Testing & Compliance is in progress (Vitest test harness, regulatory unit & integration suites active with 55 passing tests).
+**Status**: Active development — Phase 7 Scale & Performance complete (Socket.IO real-time tracking, Redis caching, PWA offline resilience, code-splitting, i18n multi-language, Docker & Cloud Run CI/CD).
 
 ---
 
@@ -28,13 +28,18 @@ The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content
 | Styling | TailwindCSS | 4.1.14 |
 | Icons | Lucide React | 0.546.0 |
 | Animation | Motion (Framer Motion) | 12.23.24 |
-| Routing | None (state-based SPA) | — |
+| Real-Time Client | Socket.IO Client | 4.8.1 |
+| Internationalization | react-i18next / i18next | 15.4.1 / 24.2.2 |
+| PWA Support | vite-plugin-pwa | 1.3.0 |
+| Routing | None (state-based SPA with React.lazy) | — |
 
 ### Backend
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | Server | Express.js | 4.21.2 |
+| Real-Time Server | Socket.IO | 4.8.1 |
+| Cache Client | ioredis | 5.4.2 |
 | Runtime | Node.js (tsx) | Latest |
 | Environment | dotenv | 17.2.3 |
 
@@ -44,15 +49,17 @@ The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content
 |---------|-----|---------|
 | Google Gemini | `@google/genai` v2.4.0 | Noor AI chat + moderation |
 
-### Infrastructure (Planned)
+### Infrastructure
 
 | Component | Technology | Status |
 |-----------|-----------|--------|
-| Database | PostgreSQL (schema-per-tenant) | Planned |
+| Database | SQLite (`mediwise.db`) + performance indexes | Active (Postgres migration planned) |
+| Cache | Redis (ioredis wrapper with in-memory fallback) | Active |
+| Real-Time | Socket.IO room-based event bus | Active |
+| Containerization | Docker (multi-stage Node 20 Alpine) | Implemented (`Dockerfile`) |
+| Deployment | Google Cloud Run (`cloudrun.yaml`) | Implemented |
+| CI/CD | GitHub Actions (`.github/workflows/ci-cd.yml`) | Implemented |
 | Auth | JWT + ABHA ID integration | Implemented (SQLite sessions) |
-| File Storage | GCP Cloud Storage | Planned |
-| Deployment | Google Cloud Run | Planned |
-| CI/CD | GitHub Actions | Planned |
 
 ---
 
@@ -164,28 +171,40 @@ The AI assistant "**Noor**" provides 24/7 medicine Q&A, Rx guidance, and content
 
 ---
 
+### ✅ Scale & Performance (Phase 7)
+- [x] Socket.IO real-time server integration (`server/index.ts`, `src/realtime/websocketServer.ts`) with order rooms (`joinOrderRoom`), courier GPS live telemetry (`gps_update`), and status broadcasts (`order_updated`)
+- [x] React `RealtimeProvider` context and `useRealtime` hook in `src/realtime/RealtimeContext.tsx`
+- [x] `OrderTrackingView` wired to real-time events for instant status changes and live courier GPS marker updates
+- [x] Code splitting across all 10 `AppRole` views using `React.lazy` and `<Suspense>` boundaries
+- [x] Redis caching client (`src/cache/redisClient.ts`) with TTL support and resilient in-memory fallback for catalog caching
+- [x] `getMedicines` API wrapped in Redis cache (`medicines:?query`) with 5-minute TTL
+- [x] DB performance indexes applied via `migrations/20260910_add_indexes.sql` on `orders(status)`, `orders(pharmacy_hub_id)`, `pharmacy_offers(medicine_id)`, `pharmacy_offers(hub_id)`, `audit_log(entity_id)`, `audit_log(created_at)`
+- [x] PWA offline capabilities with `vite-plugin-pwa`, service worker precaching, web manifest, and `public/offline.html`
+- [x] Dedicated graceful offline fallback component (`src/offline/OfflineFallback.tsx`) wired to browser `online`/`offline` lifecycle events in `App.tsx`
+- [x] Internationalization (i18n) setup (`src/i18n/index.ts`) supporting English (`en`), Hindi (`hi`), and Tamil (`ta`)
+- [x] Image optimization helper utilities (`src/utils/imageOptimizer.tsx`) for WebP source generation and lazy loading
+- [x] Production Docker containerization (`Dockerfile`) with multi-stage Node 20 Alpine builder
+- [x] Google Cloud Run service definition (`cloudrun.yaml`) with auto-scaling and secret injection
+- [x] Automated CI/CD pipeline (`.github/workflows/ci-cd.yml`) with lint, test, build, Docker build, and Cloud Run deployment steps
+
+---
+
 ## 4. Pending Features
 
 ### 🔴 High Priority
 
-- [ ] **Testing & Compliance (Phase 6)** — Vitest unit coverage, Playwright E2E, CDSCO/DISHA audit
-- [ ] **Push notifications** — order status updates via FCM or WebSockets
+- [ ] **Phase 8 — Native Mobile App (React Native)**: Reuse shared TypeScript types (`src/types/index.ts`), patient screens, FCM push notifications, biometric login
+- [ ] **Phase 8 — Doctor Portal**: Digital Rx issuance, pharmacist audit validation, ABHA linked records
 
 ### 🟡 Medium Priority
 
-- [ ] **Real-time order tracking** — WebSocket or SSE for live courier GPS
-- [ ] **Multi-language support** — Hindi, Tamil, Bengali (India's key generic medicine markets)
-- [ ] **Mobile-responsive optimization** — full audit of all views on 375px viewport
-- [ ] **Unit tests** — Vitest test suite for critical business logic (schedule validation, escrow states)
-- [ ] **E2E tests** — Playwright for full order flow
+- [ ] **Phase 8 — Predictive Stock Demand**: Gemini AI + 90-day order history analytics per hub
+- [ ] **Phase 8 — Noor Voice Interface**: Google Speech-to-Text & Text-to-Speech integration
 
 ### 🟢 Low Priority / Future
 
-- [ ] **PWA support** — offline-capable for low-connectivity areas
-- [ ] **Analytics dashboard** — order volume, dispute rates, hub performance trends
-- [ ] **Noor voice interface** — speech-to-text for accessibility
-- [ ] **Doctor portal** — Rx issuance and digital signature integration
-- [ ] **Cold-chain IoT integration** — real temperature sensor data from courier vehicles
+- [ ] **Cold-chain IoT sensors**: Real-time MQTT telematics for vehicle temperature loggers
+- [ ] **PostgreSQL multi-tenant migration**: Migrate from SQLite development database to production managed PostgreSQL
 
 ---
 
@@ -251,6 +270,15 @@ PUT    /api/ai/moderation/:id      Approve or redact a Noor response (`{ action:
 
 ```
 POST   /api/rx/parse               Upload Rx image (base64) and extract PrescriptionAudit fields
+```
+
+### Real-Time Events (Socket.IO)
+
+```
+Event: joinOrderRoom (Client -> Server)  Payload: orderId
+Event: order_updated (Server -> Room)    Payload: { orderId, status, timestamp }
+Event: gps_update    (Server -> Room)    Payload: { orderId, lat, lng, speed, heading }
+Event: heartbeat     (Server -> Client)  Payload: { timestamp }
 ```
 
 ---

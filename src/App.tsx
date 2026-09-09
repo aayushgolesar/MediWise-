@@ -1,30 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AppRole, PharmacyOffer, AuthUser, Medicine } from './types';
 import { Header } from './components/Header';
-import { MarketplaceView } from './components/MarketplaceView';
-import { CheckoutView } from './components/CheckoutView';
-import { OrderTrackingView } from './components/OrderTrackingView';
-import { PartnerPortalView } from './components/PartnerPortalView';
-import { QuarantineConsoleView } from './components/QuarantineConsoleView';
-import { ReassignmentEngineView } from './components/ReassignmentEngineView';
-import { DisputeConsoleView } from './components/DisputeConsoleView';
-import { SuperAdminView } from './components/SuperAdminView';
-import { OemPortalView } from './components/OemPortalView';
-import { NoorModerationView } from './components/NoorModerationView';
 import { AuthView } from './components/AuthView';
-import { AskNoorWidget } from './components/AskNoorWidget';
 import { ToastContainer } from './components/ToastContainer';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { showSuccessToast, showInfoToast } from './utils/toastStore';
+import { AskNoorWidget } from './components/AskNoorWidget';
+import { showSuccessToast, showInfoToast, showWarningToast } from './utils/toastStore';
 import { Sparkles } from 'lucide-react';
+import { RealtimeProvider } from './realtime/RealtimeContext';
+import { OfflineFallback } from './offline/OfflineFallback';
+import './i18n';
+
+// Lazy-loaded role views for code splitting
+const MarketplaceView = lazy(() => import('./components/MarketplaceView').then(m => ({ default: m.MarketplaceView })));
+const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({ default: m.CheckoutView })));
+const OrderTrackingView = lazy(() => import('./components/OrderTrackingView').then(m => ({ default: m.OrderTrackingView })));
+const PartnerPortalView = lazy(() => import('./components/PartnerPortalView').then(m => ({ default: m.PartnerPortalView })));
+const QuarantineConsoleView = lazy(() => import('./components/QuarantineConsoleView').then(m => ({ default: m.QuarantineConsoleView })));
+const ReassignmentEngineView = lazy(() => import('./components/ReassignmentEngineView').then(m => ({ default: m.ReassignmentEngineView })));
+const DisputeConsoleView = lazy(() => import('./components/DisputeConsoleView').then(m => ({ default: m.DisputeConsoleView })));
+const SuperAdminView = lazy(() => import('./components/SuperAdminView').then(m => ({ default: m.SuperAdminView })));
+const OemPortalView = lazy(() => import('./components/OemPortalView').then(m => ({ default: m.OemPortalView })));
+const NoorModerationView = lazy(() => import('./components/NoorModerationView').then(m => ({ default: m.NoorModerationView })));
 
 export default function App() {
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [currentRole, setCurrentRole] = useState<AppRole>('marketplace');
   const [selectedOffer, setSelectedOffer] = useState<PharmacyOffer | null>(null);
   const [selectedMedicine, setSelectedMedicine] = useState<Medicine | null>(null);
   const [packCount, setPackCount] = useState<number>(30);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [isNoorChatOpen, setIsNoorChatOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showSuccessToast('Internet connection restored.', 'Online');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showWarningToast('You are currently offline. Verification features paused.', 'Offline Mode');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Authentication State: Defaults to null so Login page appears first
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -68,6 +93,10 @@ export default function App() {
     setActiveOrderId(orderId);
     setCurrentRole('tracking');
   };
+
+  if (!isOnline) {
+    return <OfflineFallback />;
+  }
 
   // If user is not authenticated, show ONLY the Login / Registration screen first
   if (!currentUser) {
@@ -134,6 +163,7 @@ export default function App() {
 
   // Once authenticated, load the full site within ErrorBoundary & ToastContainer!
   return (
+    <RealtimeProvider>
     <ErrorBoundary>
       <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-emerald-500 selection:text-white relative">
         {/* Global Toast Notifications */}
@@ -152,6 +182,7 @@ export default function App() {
         {/* Main Role-Based Content Area */}
         <main className="grow pb-16">
           <ErrorBoundary onReset={() => setCurrentRole('marketplace')}>
+            <Suspense fallback={<div className="flex items-center justify-center py-20 text-slate-500 text-sm">Loading…</div>}>
             {currentRole === 'auth' && (
               <AuthView
                 onLoginSuccess={handleLoginSuccess}
@@ -216,6 +247,7 @@ export default function App() {
             {currentRole === 'noor_moderation' && (
               <NoorModerationView />
             )}
+            </Suspense>
           </ErrorBoundary>
         </main>
 
@@ -253,5 +285,6 @@ export default function App() {
         </footer>
       </div>
     </ErrorBoundary>
+    </RealtimeProvider>
   );
 }

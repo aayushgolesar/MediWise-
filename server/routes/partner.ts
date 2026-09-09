@@ -2,6 +2,7 @@ import express from 'express';
 import db from '../db.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
 import { logAuditEvent } from '../audit.js';
+import { emitOrderUpdated } from '../realtime.js';
 
 const router = express.Router();
 router.use(requireAuth, requireRole('pharmacist', 'admin'));
@@ -36,6 +37,7 @@ router.put('/orders/:id/accept', (req: AuthenticatedRequest, res) => {
   }
 
   db.prepare("UPDATE orders SET status = 'pharmacist_audit' WHERE order_id = ?").run(req.params.id);
+  emitOrderUpdated(req.params.id, 'pharmacist_audit');
 
   // Regulatory audit record for dispensing process start
   logAuditEvent('PRESCRIPTION_VERIFIED', req.params.id, req.auth?.sub ?? null, {
@@ -65,6 +67,7 @@ router.put('/orders/:id/reject', (req: AuthenticatedRequest, res) => {
   }
 
   db.prepare("UPDATE orders SET status = 'locked_escrow' WHERE order_id = ?").run(req.params.id);
+  emitOrderUpdated(req.params.id, 'locked_escrow');
 
   logAuditEvent('ORDER_REASSIGNED', req.params.id, req.auth?.sub ?? null, {
     orderId: req.params.id,

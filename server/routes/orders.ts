@@ -4,6 +4,7 @@ import type { OrderDetail, PrescriptionAudit } from '../../src/types/index.js';
 import { randomUUID } from 'crypto';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
 import { logAuditEvent } from '../audit.js';
+import { emitOrderUpdated } from '../realtime.js';
 
 const router = express.Router();
 router.use(requireAuth, requireRole('patient', 'admin'));
@@ -164,6 +165,7 @@ router.post('/', (req: AuthenticatedRequest, res) => {
     totalPaid,
     escrowStatus: 'Held in Escrow',
   });
+  emitOrderUpdated(orderId, 'locked_escrow');
 
   res.status(201).json({
     data: { orderId, deliveryOtp: otp, escrowStatus: 'Held in Escrow', status: 'locked_escrow' },
@@ -201,6 +203,7 @@ router.put('/:id/otp', (req: AuthenticatedRequest, res) => {
     destinationHubId: row.pharmacy_hub_id,
     confirmedVia: 'Customer OTP',
   });
+  emitOrderUpdated(req.params.id, 'delivered');
 
   res.json({
     data: { status: 'delivered', escrowStatus: 'Released to Pharmacy' },

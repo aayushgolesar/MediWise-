@@ -1,5 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import medicinesRouter from './routes/medicines.js';
 import ordersRouter from './routes/orders.js';
 import authRouter from './routes/auth.js';
@@ -70,6 +74,18 @@ export const createApp = (): express.Application => {
       geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     });
   });
+
+  if (process.env.NODE_ENV === 'production') {
+    const distPath = path.resolve(__dirname, '../dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        next();
+        return;
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
 
   // ─── 404 Handler ────────────────────────────────────────────────────────────
   app.use((_req, res) => {

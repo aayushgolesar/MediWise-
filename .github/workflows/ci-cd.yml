@@ -1,0 +1,100 @@
+name: CI/CD – Lint → Test → Build → Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: asia-south1
+  IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/mediwise
+
+jobs:
+  # ── 1. Lint & Type-check ──────────────────────────────────────────────────────
+  lint:
+    name: Lint & Type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  # ── 2. Unit & Integration Tests ───────────────────────────────────────────────
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test
+        env:
+          JWT_SECRET: test-secret-at-least-32-characters-long
+          GEMINI_API_KEY: test-key
+
+  # ── 3. Build ──────────────────────────────────────────────────────────────────
+  build:
+    name: Vite Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  # ── 4. Docker Build & Push to GCR ────────────────────────────────────────────
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker --quiet
+      - run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+      - run: docker push $IMAGE:${{ github.sha }}
+      - run: docker push $IMAGE:latest
+
+  # ── 5. Deploy to Cloud Run ────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy
+        run: |
+          gcloud run services replace cloudrun.yaml \
+            --region $GCP_REGION \
+            --project $GCP_PROJECT_ID
+      - name: Make Public
+        run: |
+          gcloud run services add-iam-policy-binding mediwise-api \
+            --region $GCP_REGION \
+            --member="allUsers" \
+            --role="roles/run.invoker"

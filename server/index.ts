@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import { createApp } from './app.js';
+import { initRealtime } from './realtime.js';
 
 dotenv.config();
 
@@ -15,10 +18,18 @@ if (!process.env.GEMINI_API_KEY) {
 const PORT = Number(process.env.PORT ?? 4000);
 const CLIENT_URL = process.env.APP_URL ?? 'http://localhost:3000';
 const app = createApp();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: CLIENT_URL,
+    methods: ['GET', 'POST']
+  }
+});
+initRealtime(io);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`\n🚀 MediWise API running at http://localhost:${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/api/health`);
     console.log(`   CORS allowed: ${CLIENT_URL}`);
@@ -26,4 +37,5 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-export default app;
+export { app, io };
+export default httpServer;

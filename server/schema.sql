@@ -277,3 +277,8 @@ CREATE TABLE IF NOT EXISTS tax_invoices (
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_offers_medicine_id ON pharmacy_offers(medicine_id);
+CREATE INDEX IF NOT EXISTS idx_medicines_category ON medicines(category);
+CREATE INDEX IF NOT EXISTS idx_medicines_schedule ON medicines(schedule);
+

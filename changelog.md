@@ -10,24 +10,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-> Changes that are staged or in progress but not yet assigned a version number.
+> Changes that are staged or in progress for Phase 8.
+
+---
+
+## [2.1.0] — 2026-09-09
 
 ### Added
-- Phase 6 Vitest test harness (`vitest.config.ts`, `npm test`, `npm run test:coverage`) configured with `@vitest/coverage-v8` and `supertest`.
-- Modular healthcare business logic library ([`src/utils/businessLogic.ts`](file:///d:/Agentic%20AI%20Workshop/MediWise-/src/utils/businessLogic.ts)) covering CDSCO drug schedule enforcement, escrow state transitions, auto-quarantine trigger criteria, and reassignment scoring.
-- Comprehensive test suites in `tests/`:
-  - `tests/validators.test.ts`: ABHA ID (Luhn mod-10 & ABDM handle), State Pharmacy Council registration number, and CDSCO Form 20B/21B format.
-  - `tests/businessLogic.test.ts`: 22 unit tests for Schedule H/H1/OTC/X restrictions, escrow state machine, and SLA failover algorithm.
-  - `tests/compliance.test.ts`: CDSCO Form 20B/21B immutable audit trail integrity and DISHA health privacy plaintext credential protection.
-  - `tests/orderFlow.test.ts`: 8 integration tests covering order creation, cryptographic HMAC verification, escrow locking, delivery OTP confirmation, and 7-day SLA auto-release.
-  - `tests/authAndPartner.test.ts`: 8 tests covering registration validation, JWT/cookie authentication, and pharmacist order intake.
-  - `tests/adminFlow.test.ts`: 4 tests for quarantine item release, SLA reassignment force-assign, and dispute resolution.
 
-### Security
-- Verified zero plaintext password storage in database (all hashes strictly scrypt-derived).
-- Verified audit log metadata sanitation ensuring no plaintext credentials or sensitive keys are stored.
-- Confirmed `GEMINI_API_KEY` is server-side only; client chat and OCR never call Gemini directly.
-- Non-overridable CDSCO system prompt on `/api/ai/chat`; client-supplied system instructions are ignored.
+#### ⚡ Scale & Performance (Phase 7)
+- **Real-Time Engine (Socket.IO)**:
+  - Integrated `socket.io` server attached to Node HTTP server in `server/index.ts`.
+  - Room-based order subscription channel (`joinOrderRoom`) and GPS telemetry broadcasts (`gps_update`, `order_updated`) in `src/realtime/websocketServer.ts`.
+  - React `RealtimeProvider` and `useRealtime` hook in `src/realtime/RealtimeContext.tsx`.
+  - Live real-time updates and active courier GPS positioning wired into `OrderTrackingView.tsx`.
+- **Performance Optimization**:
+  - Code splitting across all 10 `AppRole` views using `React.lazy` with `<Suspense>` fallback in `src/App.tsx`.
+  - Image optimization utilities (`optimisedImgProps`, `webpSource`) in `src/utils/imageOptimizer.tsx`.
+  - Redis caching layer (`ioredis`) with resilient in-memory fallback in `src/cache/redisClient.ts`.
+  - 5-minute TTL caching on medicine catalog queries (`getMedicines`).
+  - SQLite database indexes migration applied via `migrations/20260910_add_indexes.sql` on `orders(status)`, `orders(pharmacy_hub_id)`, `pharmacy_offers(medicine_id)`, `pharmacy_offers(hub_id)`, and `audit_log(entity_id, created_at)`.
+- **Progressive Web App (PWA) & Offline Resilience**:
+  - `vite-plugin-pwa` integration with automatic service worker precaching in `vite.config.ts`.
+  - Web App Manifest configured with icons, standalone display mode, and theme color.
+  - Dedicated offline fallback page in `public/offline.html` and styled React fallback component in `src/offline/OfflineFallback.tsx`.
+  - Window `online` / `offline` event listeners in `src/App.tsx` for graceful connectivity degraded state.
+- **Multi-Language (i18n)**:
+  - Internationalization setup via `react-i18next` and `i18next` in `src/i18n/index.ts`.
+  - Base translation sets for English (`en`), Hindi (`hi`), and Tamil (`ta`).
+- **Cloud Deployment & CI/CD**:
+  - Multi-stage production `Dockerfile` based on Node 20 Alpine.
+  - Google Cloud Run service definition (`cloudrun.yaml`) with horizontal auto-scaling (1–10 instances).
+  - GitHub Actions automated CI/CD pipeline (`.github/workflows/ci-cd.yml`) covering lint, unit/integration testing, container build, and Cloud Run deployment.
+  - `"start:prod"` script in `package.json`.
 
 ---
 

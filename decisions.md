@@ -19,6 +19,11 @@
 | D-009 | Express.js Backend for API Proxy | 2026-09-08 | ✅ Active |
 | D-010 | CDSCO-Compliant Drug Schedule Enforcement | 2026-09-08 | ✅ Active |
 | D-011 | Server-Side Gemini Proxy with OCR and Moderation | 2026-09-08 | ✅ Active |
+| D-012 | Socket.IO for Bi-directional Real-Time Events & GPS | 2026-09-09 | ✅ Active |
+| D-013 | Redis Distributed Cache with Resilient In-Memory Fallback | 2026-09-09 | ✅ Active |
+| D-014 | VitePWA and Service Worker for Offline Resilience | 2026-09-09 | ✅ Active |
+| D-015 | react-i18next for Multi-Language Patient Support | 2026-09-09 | ✅ Active |
+| D-016 | Google Cloud Run Containerized Deployment & CI/CD | 2026-09-09 | ✅ Active |
 
 ---
 
@@ -332,3 +337,98 @@ The `Medicine.schedule` field enforces one of three values via TypeScript union 
 - Checkout must always validate `medicine.schedule` before processing.
 - `PrescriptionAudit.scheduleCategory` must match the purchased medicine's schedule.
 - Schedule X medicines are referenced in audits but not currently sold — add only after legal review.
+
+---
+
+## D-012 — Socket.IO for Bi-directional Real-Time Events & GPS
+
+| Field | Detail |
+|-------|--------|
+| **Date** | 2026-09-09 |
+| **Status** | ✅ Active |
+
+### Context / Problem
+`OrderTrackingView` requires sub-2-second live updates for courier GPS coordinates, cold-chain checks, and milestone advancements (Audit → Packaging → Out for Delivery).
+
+### Decision Taken
+Adopt **Socket.IO** (v4.8) integrated directly onto the Express HTTP server with room-based partitioning per `orderId`.
+
+### Reasoning
+- Room scoping (`joinOrderRoom`) prevents broadcasting patient delivery telemetry to unauthorised clients.
+- Automatic reconnection and WebSocket fallback to HTTP long-polling accommodates spotty Indian mobile networks.
+
+---
+
+## D-013 — Redis Distributed Cache with Resilient In-Memory Fallback
+
+| Field | Detail |
+|-------|--------|
+| **Date** | 2026-09-09 |
+| **Status** | ✅ Active |
+
+### Context / Problem
+High read volume on medicine catalog queries (`/api/medicines`) degrades database latency during peak patient traffic.
+
+### Decision Taken
+Use **ioredis** with a 5-minute TTL key pattern (`medicines:?query`) and an in-memory `Map` fallback when `REDIS_URL` is unreachable or unconfigured in local dev.
+
+### Reasoning
+- Eliminates hard dependency on external Redis infrastructure for local development and CI testing.
+- Drastically reduces database query load for frequent search terms and categories.
+
+---
+
+## D-014 — VitePWA and Service Worker for Offline Resilience
+
+| Field | Detail |
+|-------|--------|
+| **Date** | 2026-09-09 |
+| **Status** | ✅ Active |
+
+### Context / Problem
+Patients in tier-2/3 towns and rural health camps often face intermittent mobile internet connectivity.
+
+### Decision Taken
+Implement **vite-plugin-pwa** with a Workbox `NetworkFirst` runtime caching strategy, standalone app manifest, and dedicated `OfflineFallback` view in React.
+
+### Reasoning
+- Allows cached assets and previous catalog searches to load instantly offline.
+- Graceful offline fallback informs users that prescription validation and payment escrow actions require live connectivity without crashing.
+
+---
+
+## D-015 — react-i18next for Multi-Language Patient Support
+
+| Field | Detail |
+|-------|--------|
+| **Date** | 2026-09-09 |
+| **Status** | ✅ Active |
+
+### Context / Problem
+Over 70% of India's generic medicine patient base consumes health services in regional languages (Hindi, Tamil, etc.).
+
+### Decision Taken
+Standardize on **react-i18next** and **i18next** initialized at the root of `App.tsx` with locale bundles for English (`en`), Hindi (`hi`), and Tamil (`ta`).
+
+### Reasoning
+- Industry-standard React i18n solution with zero layout shift during language switching.
+- Extensible JSON schema for adding further regional languages (Telugu, Bengali, Marathi) in Phase 8.
+
+---
+
+## D-016 — Google Cloud Run Containerized Deployment & CI/CD
+
+| Field | Detail |
+|-------|--------|
+| **Date** | 2026-09-09 |
+| **Status** | ✅ Active |
+
+### Context / Problem
+MediWise requires scalable, HIPAA/DISHA-compliant serverless hosting with zero server maintenance overhead.
+
+### Decision Taken
+Containerize Express with a multi-stage Node 20 Alpine `Dockerfile` deployed to **Google Cloud Run** (`cloudrun.yaml`), managed via GitHub Actions CI/CD (`.github/workflows/ci-cd.yml`).
+
+### Reasoning
+- Horizontal auto-scaling down to zero and up to 10+ instances handles traffic spikes.
+- Native GCP Secret Manager integration protects `GEMINI_API_KEY`, `SESSION_SECRET`, and `REDIS_URL`.

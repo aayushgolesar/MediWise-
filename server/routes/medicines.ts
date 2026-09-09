@@ -2,6 +2,7 @@ import express from 'express';
 import db from '../db.js';
 import type { Medicine, PharmacyOffer } from '../../src/types/index.js';
 import { requireAuth } from '../security.js';
+import { catalogCacheKey, getCached, setCached } from '../cache.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -62,8 +63,17 @@ function rowToOffer(row: Record<string, unknown>): PharmacyOffer {
  * GET /api/medicines
  * Query params: ?category=Cardiovascular&schedule=OTC&search=atorva
  */
-router.get('/', (req, res) => {
-  const { category, schedule, search } = req.query;
+router.get('/', async (req, res) => {
+  const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+  const schedule = typeof req.query.schedule === 'string' ? req.query.schedule : undefined;
+  const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+  const cacheKey = catalogCacheKey(category, schedule, search);
+  const cached = await getCached(cacheKey);
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT');
+    res.json(JSON.parse(cached) as { data: Medicine[]; count: number });
+    return;
+  }
 
   let query = 'SELECT * FROM medicines WHERE 1=1';
   const params: unknown[] = [];
@@ -84,7 +94,10 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
   const medicines = rows.map(rowToMedicine);
-  res.json({ data: medicines, count: medicines.length });
+  const payload = { data: medicines, count: medicines.length };
+  await setCached(cacheKey, JSON.stringify(payload), 60);
+  res.setHeader('X-Cache', 'MISS');
+  res.json(payload);
 });
 
 /**

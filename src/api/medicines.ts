@@ -1,5 +1,6 @@
 import { apiClient } from './client.js';
 import type { Medicine, PharmacyOffer } from '../types/index.js';
+import { getCached, setCached } from '../cache/redisClient.js';
 
 export interface MedicinesFilter {
   category?: string;
@@ -13,7 +14,13 @@ export const getMedicines = async (filters?: MedicinesFilter): Promise<Medicine[
   if (filters?.schedule) params.set('schedule', filters.schedule);
   if (filters?.search) params.set('search', filters.search);
   const query = params.toString() ? `?${params.toString()}` : '';
+  const cacheKey = `medicines:${query}`;
+  const cached = await getCached(cacheKey);
+  if (cached) {
+    return JSON.parse(cached) as Medicine[];
+  }
   const res = await apiClient.get<Medicine[]>(`/medicines${query}`);
+  await setCached(cacheKey, JSON.stringify(res.data), 300);
   return res.data;
 };
 

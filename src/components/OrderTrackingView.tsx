@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getOrder } from '../api/orders.js';
 import { getTaxInvoice, type TaxInvoice } from '../api/payments.js';
 import type { OrderDetail } from '../types';
+import { useRealtime } from '../realtime/RealtimeContext';
 import { 
   Truck, 
   MapPin, 
@@ -37,13 +38,37 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
   const [showInvoiceModal, setShowInvoiceModal] = useState<boolean>(false);
   const [taxInvoice, setTaxInvoice] = useState<TaxInvoice | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState<boolean>(false);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
+
+  const socket = useRealtime();
 
   useEffect(() => {
     if (!orderId) return;
     void getOrder(orderId).then(setOrder);
   }, [orderId]);
 
-  // Simulate subtle rider progress
+  // Subscribe to real-time order events via socket.io
+  useEffect(() => {
+    if (!socket || !orderId) return;
+    socket.emit('joinOrderRoom', orderId);
+    const handleOrderUpdate = (data: { status: string }) => {
+      setLiveStatus(data.status);
+      // Refresh order details from API on status change
+      void getOrder(orderId).then(setOrder);
+    };
+    const handleGpsUpdate = (data: { distanceKm: number; etaMinutes: number }) => {
+      setRiderDistance(data.distanceKm);
+      setEtaMinutes(data.etaMinutes);
+    };
+    socket.on('order_updated', handleOrderUpdate);
+    socket.on('gps_update', handleGpsUpdate);
+    return () => {
+      socket.off('order_updated', handleOrderUpdate);
+      socket.off('gps_update', handleGpsUpdate);
+    };
+  }, [socket, orderId]);
+
+  // Simulate subtle rider progress (fallback when no real GPS data)
   useEffect(() => {
     const timer = setInterval(() => {
       setRiderDistance(prev => (prev > 0.3 ? Number((prev - 0.05).toFixed(2)) : 0.25));
