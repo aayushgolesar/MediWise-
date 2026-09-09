@@ -29,7 +29,7 @@ initRealtime(io);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  httpServer.listen(PORT, () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 MediWise API running at http://localhost:${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/api/health`);
     console.log(`   CORS allowed: ${CLIENT_URL}`);

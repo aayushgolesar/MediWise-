@@ -76,7 +76,9 @@ export const createApp = (): express.Application => {
   });
 
   if (process.env.NODE_ENV === 'production') {
-    const distPath = path.resolve(__dirname, '../dist');
+    // In Docker the frontend build is at /app/frontend/dist (two levels up from backend/src)
+    const distPath = process.env.FRONTEND_DIST_PATH
+      ?? path.resolve(__dirname, '../../frontend/dist');
     app.use(express.static(distPath));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api')) {

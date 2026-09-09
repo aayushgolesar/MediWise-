@@ -26,8 +26,9 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 # Expose port used by Cloud Run
 ENV PORT=8080
 ENV NODE_ENV=production
+ENV FRONTEND_DIST_PATH=/app/frontend/dist
 EXPOSE 8080
 
 # Serve from backend
 WORKDIR /app/backend
-CMD ["node", "--loader", "tsx/esm", "src/index.ts"]
+CMD ["npx", "tsx", "src/index.ts"]
