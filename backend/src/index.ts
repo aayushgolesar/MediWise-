@@ -27,13 +27,19 @@ initRealtime(io);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
-  void connectDB().then(() => {
+  const startServer = () => {
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`\n🚀 MediWise API running at http://localhost:${PORT}`);
       console.log(`   Health check: http://localhost:${PORT}/api/health`);
       console.log(`   CORS allowed: ${CLIENT_URL}`);
       console.log(`   Gemini AI:    ${process.env.GEMINI_API_KEY ? '✅ Configured' : '⚠️  Dev fallback mode'}\n`);
     });
+  };
+
+  // Try to connect to MongoDB, but start server anyway
+  void connectDB().then(() => {
+    console.log('✅ MongoDB connected successfully');
+    startServer();
   }).catch((error: unknown) => {
     console.error('❌ Failed to connect to MongoDB Atlas');
     console.error('Error details:', error instanceof Error ? error.message : String(error));
@@ -42,7 +48,8 @@ if (process.env.NODE_ENV !== 'test') {
     console.error('2. Render IP not whitelisted in MongoDB Atlas Network Access');
     console.error('3. MongoDB credentials are incorrect');
     console.error('4. Network connection timeout (check firewall)');
-    process.exitCode = 1;
+    console.error('\n⚠️  Starting server anyway - will retry MongoDB connection on first request');
+    startServer();
   });
 }
 
